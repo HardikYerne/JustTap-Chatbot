@@ -43,14 +43,15 @@ function intentGroup(intent: string): string {
 export function queryIntent(query: string, serviceKnown = false): string {
   const x = normalizeText(query);
 
-  // Service-information questions must win over the broader "about JustTap"
-  // company rule. For example, "tell me about JustTap service" is asking
-  // how to find/use services, not "what is JustTap?".
-  if (/\b(justtap service|justtap services|about justtap service|about justtap services|tell me about justtap service|tell me about justtap services|what services does justtap|services does justtap offer|what services are available on justtap)\b/.test(x)) {
-    return 'find_service';
+  // General company questions must be resolved before generic service discovery.
+  // Example: "tell me about JustTap service" is asking what JustTap is, not
+  // how to find a service. Plural "services" remains service discovery.
+  if (/\b(what is justtap|about justtap|tell me about justtap|who is justtap|what does justtap do|justtap service)\b/.test(x) &&
+      !/\b(justtap services|what services does justtap|services does justtap offer)\b/.test(x)) {
+    return 'what_is_justtap';
   }
-  if (/\b(what is justtap|about justtap|who is justtap|what does justtap do)\b/.test(x)) return 'what_is_justtap';
   if (/\b(how does justtap work|how justtap works|how does justtap)\b/.test(x)) return 'how_justtap_works';
+  if (/\b(justtap services|what services does justtap|services does justtap offer|tell me about justtap services)\b/.test(x)) return 'find_service';
   if (/\b(justtap locations|where does justtap operate|where is justtap available)\b/.test(x)) return 'justtap_locations';
   if (/\b(contact justtap|contact customer support|contact support)\b/.test(x)) return 'contact_justtap';
 

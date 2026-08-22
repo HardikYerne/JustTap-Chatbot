@@ -34,11 +34,7 @@ export interface GeneratedResponse {
   missingFields: string[];
 }
 
-/**
- * Response generation is intentionally independent from the knowledge
- * retrieval algorithm. RAG decides WHAT the answer is about; this layer
- * decides HOW it should be presented and whether a booking state is needed.
- */
+
 export function generateResponse(
   result: RAGResult,
   context: ResponseContext

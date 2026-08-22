@@ -8,6 +8,16 @@ function fallback(language: SupportedLanguage = 'en'): string {
   return "I couldn't find a reliable answer from our support information.";
 }
 
+
+function normalizeTextForRanker(value: string): string {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function baseService(record: Candidate['record']): string {
   if (record.service.trim()) return record.service.trim();
   if (record.subService.trim()) return record.subService.trim();
@@ -77,20 +87,29 @@ export function rank(
 
   const genericDiscovery = intentGroup(best.record.intent) === 'find_service';
 
-  // The generic service FAQ is intentionally service-agnostic. A query such
-  // as "tell me about JustTap service" should not require a concrete
-  // sub-service (pipe repair, tap repair, AC repair, etc.). The candidate was
-  // already restricted to the find_service intent during retrieval, so use
-  // general/query evidence here instead of requiring serviceEvidence.
-  const genericDiscoveryReliable =
-    genericDiscovery &&
+  // Company/general-information FAQs are intentionally service-agnostic.
+  // A query such as "tell me about JustTap service" can have zero
+  // serviceEvidence because it does not name a sub-service. When the
+  // candidate itself is an authoritative company FAQ and the query has
+  // strong JustTap + intent evidence, trust that intent match instead of
+  // forcing a service match.
+  const isJustTapCompanyQuery =
+    /\bjusttap\b/i.test(q) &&
+    /\b(about|what|who|does|do|service|services|work|platform)\b/i.test(q);
+  const isCompanyRecord =
+    normalizeTextForRanker(best.record.category) === 'company related' ||
+    /^what_is_justtap$|^how_justtap_works$|^justtap_locations$|^contact_justtap$/i.test(best.record.intent);
+  const companyInfoReliable =
+    isJustTapCompanyQuery &&
+    isCompanyRecord &&
+    best.intentMatch &&
     best.score >= 0.35 &&
-    evidence >= 1 &&
-    best.matchedTokens.some(t => !/^(book|booking|want|need|service|services|find|search|please|help|tell|about|just)$/i.test(t));
+    evidence >= 2;
 
   const reliable =
     exactMatch ||
-    genericDiscoveryReliable ||
+    companyInfoReliable ||
+    (genericDiscovery && best.score >= 0.65 && best.serviceEvidence > 0) ||
     (
       best.score >= 0.55 &&
       evidence >= 2 &&
