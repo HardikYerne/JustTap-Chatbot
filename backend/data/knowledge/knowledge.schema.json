@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JustTap Knowledge Record",
+  "type": "object",
+  "required": [
+    "id",
+    "language",
+    "audience",
+    "intent",
+    "category",
+    "service",
+    "subService",
+    "keywords",
+    "urgency",
+    "question",
+    "answer",
+    "answerTemplate",
+    "source",
+    "active"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "language": {
+      "type": "string",
+      "minLength": 2
+    },
+    "audience": {
+      "enum": [
+        "customer",
+        "provider"
+      ]
+    },
+    "intent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string"
+    },
+    "service": {
+      "type": "string"
+    },
+    "subService": {
+      "type": "string"
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "urgency": {
+      "type": "string"
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "answer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "answerTemplate": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "active": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}
