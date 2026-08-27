@@ -1,6 +1,16 @@
 node_modules/
 dist/
 .env
+*.log
+uploads/*
+!uploads/.gitkeep
+.env
+.env.*
+!.env.example
+!.env.production.example
+node_modules/
+dist/
+.env
 .env.*
 !.env.example
 !.env.production.example

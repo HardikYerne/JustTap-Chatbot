@@ -1,102 +1,161 @@
-# JustTap Support Backend
+# JustTap Chatbot Backend
 
-## Dataset-driven vectorless RAG
+Production-oriented Node.js + TypeScript backend for the standalone JustTap information/support chatbot.
 
-This backend uses the supplied JustTap knowledge dataset and does **not** use an LLM or vector database.
+## Scope
 
-The canonical runtime source is:
+- Information and guidance only for normal application actions.
+- Multilingual response using detected user language.
+- CSV / JSON / PDF ingestion.
+- Hugging Face multilingual embeddings and LLM.
+- MongoDB as the chatbot's primary database.
+- Qdrant as the vector search engine for embeddings.
+- Hybrid keyword + vector retrieval.
+- Reranking-ready retrieval layer.
+- Strict relevance/domain guard.
+- Chat/session/message persistence.
+- Chatbot-owned support tickets and support APIs.
+- 24-hour ticket SLA metadata.
+- No access to the JustTap application database.
+- No booking/payment/cancellation/rescheduling/provider-selection APIs.
+- No LangChain.
 
-- `data/knowledge/justtap_knowledge.csv`
-- 97,322 active knowledge records
-- 3 languages: English, Hindi, Marathi
-- 33 categories
-- 166 inferred sub-services
-- customer/provider audience partition
+## Architecture
 
-### Important dataset detail
-
-The supplied CSV has an empty `subService` column for the generated records. The loader therefore derives the sub-service from the first meaningful keyword phrase when appropriate. For example:
-
-- `pipe repair` -> Plumbing -> pipe repair
-- `leakage repair` -> Plumbing -> leakage repair
-- `AC repair` -> AC & Cooling -> AC repair
-
-The loader does not invent service facts; it derives the taxonomy from the dataset itself.
-
-## Fixed retrieval flow
-
-1. Language normalization
-2. Intent detection
-3. Dataset-learned service/category resolution
-4. Category and sub-service retrieval
-5. Intent retrieval
-6. Selective-token inverted-index retrieval
-7. Language and audience filtering
-8. Service compatibility scoring
-9. Location/time relevance scoring
-10. Reranking and confidence gate
-11. Dataset-backed answer or localized fallback
-
-### Service resolution
-
-Service detection now distinguishes:
-
-- **Category-level request:** `book a carpenter`
-- **Sub-service request:** `book pipe repair`
-
-A broad service request does not require sub-service token overlap. A specific sub-service request is restricted to that sub-service.
-
-Aliases are learned from dataset keywords and are matched as whole tokens. This prevents short aliases such as `ac` from matching unrelated words such as `practice`.
-
-### Indexed retrieval
-
-The generic inverted index only keeps selective tokens below a document-frequency threshold. Common terms such as `book`, `service`, and `price` are handled through structured intent/category indexes instead of producing near-full-dataset candidate sets.
-
-### Exact matching
-
-Exact question matches go through ranking rather than returning the first file-order record.
-
-### Audience
-
-Audience is a hard constraint. Provider queries do not silently fall back to customer knowledge.
-
-### Language
-
-Language is a hard retrieval constraint. If a localized generic discovery FAQ is unavailable, the backend returns a localized routing response rather than answering from another language.
-
-## API
-
-`POST /api/support/chat`
-
-```json
-{
-  "sessionId": "session-123",
-  "message": "I want to book a plumber",
-  "language": "en",
-  "audience": "customer"
-}
+```text
+Frontend
+   |
+   | POST /api/v1/chat
+   v
+Node.js + TypeScript
+   |
+   +-- Language Detection
+   +-- Intent Detection
+   +-- Entity/Keyword Processing
+   +-- Hybrid Retrieval
+   |     +-- MongoDB keyword search
+   |     +-- Qdrant vector search
+   +-- Relevance Guard
+   +-- Hugging Face LLM
+   +-- Conversation Store (MongoDB)
+   +-- Ticket Service (MongoDB)
+   |
+   +--> Answer
+   |
+   +--> Genuine unresolved JustTap issue
+            |
+            v
+       Chatbot Ticket DB
+            |
+            v
+       Support Panel
 ```
 
-## Run
+## Important boundary
 
-```powershell
+The actual JustTap application is separate. The chatbot does not directly access its DB or perform normal application actions.
+
+For provider-area requests, the chatbot gives neutral guidance to search in the JustTap application and does not choose/expose individual provider contacts.
+
+## Setup
+
+1. Copy `.env.example` to `.env`.
+2. Set `HF_API_TOKEN`.
+3. Configure MongoDB and Qdrant.
+4. Install dependencies:
+
+```bash
 npm install
-npm run build
-npm run start
 ```
 
-For development:
+5. Start local infrastructure:
 
-```powershell
+```bash
+docker compose up -d mongo qdrant
+```
+
+6. Start the API:
+
+```bash
 npm run dev
 ```
 
-Backend listens on port `4000` by default.
+## Ingest knowledge
 
-## RAG test
+CSV:
 
-After `npm install`, run:
-
-```powershell
-npm run test:rag
+```bash
+npm run ingest -- ./knowledge/your-data.csv
 ```
+
+JSON:
+
+```bash
+npm run ingest -- ./knowledge/your-data.json
+```
+
+PDF:
+
+```bash
+npm run ingest -- ./knowledge/your-document.pdf
+```
+
+The ingestion pipeline writes normalized knowledge to MongoDB and embeddings to Qdrant.
+
+## Seed the generated service Q&A dataset
+
+Copy the generated dataset into `knowledge/` and run:
+
+```bash
+npm run seed -- knowledge/justtap_service_qa.json
+```
+
+## Frontend integration
+
+### Chat request
+
+```http
+POST /api/v1/chat
+Content-Type: application/json
+```
+
+```json
+{
+  "message": "How can I book a plumber?",
+  "sessionId": "optional-session-id",
+  "customerReference": "optional-customer-reference"
+}
+```
+
+### Chat response
+
+```json
+{
+  "sessionId": "...",
+  "language": "en",
+  "intent": "how_to_book",
+  "answer": "...",
+  "ticketCreated": false,
+  "sources": []
+}
+```
+
+### Ticket endpoints
+
+```text
+GET /api/v1/tickets
+GET /api/v1/tickets/:ticketId
+```
+
+Ticket creation is controlled by the chatbot decision layer. A ticket is created only for a genuine JustTap-related issue that cannot be resolved from the available knowledge.
+
+## Production notes
+
+- Put the API behind HTTPS/reverse proxy.
+- Use MongoDB Atlas or a secured MongoDB deployment.
+- Use Qdrant Cloud or secured Qdrant.
+- Store secrets only in environment/secret management.
+- Add authentication for customer sessions and support agents before production.
+- Do not expose source scores to customers unless needed by the UI.
+- Add a real multilingual reranker if required; the retrieval interface is already isolated for this.
+- Add observability, audit logs, backups, and SLA escalation workers before production launch.
