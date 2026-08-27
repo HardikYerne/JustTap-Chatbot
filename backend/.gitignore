@@ -1,29 +1,7 @@
-node_modules/
-dist/
-.env
-*.log
-uploads/*
-!uploads/.gitkeep
-.env
-.env.*
-!.env.example
-!.env.production.example
-node_modules/
-dist/
-.env
-.env.*
-!.env.example
-!.env.production.example
-# ==========================================
-# Dependencies
-# ==========================================
-node_modules/
-.pnpm-store/
-.npm/
-
 # ==========================================
 # Environment / Secrets
 # ==========================================
+
 .env
 .env.local
 .env.development
@@ -31,100 +9,11 @@ node_modules/
 .env.production
 .env.*.local
 
-# Keep an example configuration
+# Keep example configuration files
 !.env.example
-
-# ==========================================
-# Build / TypeScript
-# ==========================================
-dist/
-build/
-out/
-*.tsbuildinfo
-
-# ==========================================
-# Logs
-# ==========================================
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# ==========================================
-# Runtime
-# ==========================================
-.tmp/
-temp/
-.cache/
-
-# ==========================================
-# Test / Coverage
-# ==========================================
-coverage/
-.nyc_output/
-
-# ==========================================
-# IDE / Editors
-# ==========================================
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
-!.vscode/tasks.json
-!.vscode/launch.json
-
-.idea/
-*.swp
-*.swo
-
-# ==========================================
-# OS
-# ==========================================
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# ==========================================
-# Frontend
-# ==========================================
-frontend/node_modules/
-frontend/dist/
-frontend/build/
-frontend/.vite/
-
-# ==========================================
-# Backend
-# ==========================================
-backend/node_modules/
-backend/dist/
-
-# ==========================================
-# Database / Local Data
-# ==========================================
-*.sqlite
-*.sqlite3
-*.db
-
-# ==========================================
-# Generated / Temporary ZIP files
-# ==========================================
-*.zip
-
-# ==========================================
-# Secrets / Certificates
-# ==========================================
-*.pem
-*.key
-*.crt
-*.p12
-
-# ==========================================
-# Local uploads
-# ==========================================
-uploads/
-storage/
-
-# ==========================================
-# OS-specific project files
-# ==========================================
-*.local
+!.env.production.example
+.env
+.env.*
+!.env.example
+!.env.mongodb-atlas.example
+!.env.production.example
