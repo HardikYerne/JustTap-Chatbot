@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "node scripts/build.cjs",
+    "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "ingest": "tsx scripts/ingest.ts",
     "seed": "tsx scripts/seed.ts",
@@ -28,7 +28,7 @@
   "devDependencies": {
     "@types/node": "^24.2.1",
     "tsx": "^4.20.3",
-    "typescript": "^5.9.2",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
 }
