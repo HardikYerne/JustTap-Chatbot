@@ -1,4 +1,4 @@
-import ts from "typescript";
+const ts = require("typescript");
 
 const configPath = ts.findConfigFile(
   "./",
@@ -7,17 +7,20 @@ const configPath = ts.findConfigFile(
 );
 
 if (!configPath) {
-  throw new Error("tsconfig.json not found");
+  console.error("tsconfig.json not found");
+  process.exit(1);
 }
 
 const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
 
 if (configFile.error) {
-  const message = ts.flattenDiagnosticMessageText(
-    configFile.error.messageText,
-    "\n"
+  console.error(
+    ts.flattenDiagnosticMessageText(
+      configFile.error.messageText,
+      "\n"
+    )
   );
-  throw new Error(message);
+  process.exit(1);
 }
 
 const parsed = ts.parseJsonConfigFileContent(
@@ -51,6 +54,7 @@ if (diagnostics.length > 0) {
 const result = program.emit();
 
 if (result.emitSkipped) {
+  console.error("TypeScript build failed.");
   process.exit(1);
 }
 

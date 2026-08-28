@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "node scripts/build.mjs",
+    "build": "node scripts/build.cjs",
     "start": "node dist/server.js",
     "ingest": "tsx scripts/ingest.ts",
     "seed": "tsx scripts/seed.ts",
