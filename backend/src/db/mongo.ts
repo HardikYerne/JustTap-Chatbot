@@ -58,3 +58,101 @@ async function ensureIndexes() {
     sessionId: 1,
     createdAt: 1
   });
+
+  await tickets.createIndex(
+    { ticketId: 1 },
+    { unique: true }
+  );
+
+  await tickets.createIndex({
+    status: 1,
+    createdAt: -1
+  });
+
+  await tickets.createIndex({
+    customerReference: 1,
+    createdAt: -1
+  });
+
+  await ticketMessages.createIndex({
+    ticketId: 1,
+    createdAt: 1
+  });
+
+  await chatbotCache.createIndex(
+    { expiresAt: 1 },
+    { expireAfterSeconds: 0 }
+  );
+}
+
+/**
+ * Create the MongoDB Atlas Vector Search index for the knowledge collection.
+ * This only prepares MongoDB for vector storage/search.
+ * The existing RAG retrieval path remains unchanged.
+ */
+async function ensureVectorSearchIndex() {
+  try {
+    const knowledge = db.collection('knowledge');
+
+    const indexName =
+      process.env.MONGODB_VECTOR_INDEX ||
+      'knowledge_vector_index';
+
+    const dimensions = Number(
+      process.env.VECTOR_SIZE || 384
+    );
+
+    if (
+      typeof (knowledge as any).createSearchIndex !==
+      'function'
+    ) {
+      return;
+    }
+
+    const indexes = await (
+      knowledge as any
+    ).listSearchIndexes().toArray();
+
+    const exists = indexes.some(
+      (index: any) => index.name === indexName
+    );
+
+    if (!exists) {
+      await (knowledge as any).createSearchIndex({
+        name: indexName,
+        type: 'vectorSearch',
+        definition: {
+          fields: [
+            {
+              type: 'vector',
+              path: 'embedding',
+              numDimensions: dimensions,
+              similarity: 'cosine'
+            },
+            {
+              type: 'filter',
+              path: 'language'
+            },
+            {
+              type: 'filter',
+              path: 'intent'
+            },
+            {
+              type: 'filter',
+              path: 'category'
+            },
+            {
+              type: 'filter',
+              path: 'sub_service'
+            }
+          ]
+        }
+      });
+    }
+  } catch (error) {
+    console.warn(
+      '[MONGO] Vector Search index setup skipped:',
+      error
+    );
+  }
+}
