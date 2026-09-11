@@ -101,14 +101,18 @@ const languageStep = RunnableLambda.from(async (input: OrchestratorInput) => {
     getConversationLanguage(input.sessionId)
   ]);
 
-  // The language of the current message is only the understanding language.
-  // Once a conversation has a response language, keep using it even when
-  // the customer switches languages for an individual question. An explicit
-  // responseLanguage from the API remains the strongest override.
+  // The selected chat language (the toggle sent as responseLanguage) is
+  // the customer's explicit choice for what language they want to be
+  // answered in, and it must win regardless of what script they happen to
+  // type the message in -- an English-chat customer typing a Hindi word
+  // still gets an English answer, and a Hindi-chat customer typing in
+  // English still gets a Hindi answer. inputLanguage/storedConversationLanguage
+  // are only fallbacks for the (currently rare, since the frontend always
+  // sends a toggle value) case where no explicit responseLanguage arrives.
   const responseLanguage =
     input.responseLanguage?.trim().toLowerCase() ||
-    storedConversationLanguage ||
     inputLanguage ||
+    storedConversationLanguage ||
     'en';
 
   return { ...input, language: inputLanguage, responseLanguage, normalizedMessage, history };
