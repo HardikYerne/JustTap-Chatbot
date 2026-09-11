@@ -28,7 +28,7 @@ import { ChatRequest } from '../models/types.js';
 import { runOrchestrator } from '../langchain/orchestrator.js';
 import { runAnswerChain } from '../langchain/answerChain.js';
 import { rememberMockTurn } from '../langchain/memory.js';
-import { generate } from './huggingface.js';
+import { setCachedAnswer } from '../langchain/cache.js';
 import { createTicket } from './tickets.js';
 
 import { env } from '../config/env.js';
@@ -36,7 +36,27 @@ import { env } from '../config/env.js';
 const PAYMENT_WORDS =
   /payment|paid|transaction|पेमेंट|भुगतान|paisa|paise|पैसे|rakam|रकम|राशि|રકમ|પેમેન્ટ|ભુગતાન/i;
 
+// Ticket confirmation is a fixed, deterministic message -- only the ticket
+// ID and language change. It never needs an LLM call: same structure every
+// time, and a template also removes any risk of the model paraphrasing or
+// mangling the ticket ID. This mirrors the small_talk/clarification reply
+// pattern already used in langchain/orchestrator.ts.
+const TICKET_CONFIRMATION: Record<string, (ticketId: string) => string> = {
+  hi: (id) =>
+    `आपकी शिकायत के लिए सपोर्ट टिकट बना दिया गया है। टिकट आईडी: ${id}. हमारी सपोर्ट टीम 24 घंटों के भीतर आपकी सहायता करेगी।`,
+  mr: (id) =>
+    `तुमच्या समस्येसाठी सपोर्ट तिकीट तयार करण्यात आले आहे. तिकीट आयडी: ${id}. आमची सपोर्ट टीम 24 तासांच्या आत मदत करेल.`,
+  en: (id) =>
+    `A support ticket has been created for your issue. Ticket ID: ${id}. Our support team will assist you within 24 hours.`
+};
+
+function ticketConfirmationReply(ticketId: string, language: string): string {
+  const build = TICKET_CONFIRMATION[language] ?? TICKET_CONFIRMATION.en;
+  return build(ticketId);
+}
+
 export async function chat(input: ChatRequest) {
+  const turnStart = Date.now();
   const sessionId = input.sessionId || crypto.randomUUID();
 
   // =========================================================
@@ -46,7 +66,8 @@ export async function chat(input: ChatRequest) {
 
   const routed = await runOrchestrator({
     sessionId,
-    message: input.message
+    message: input.message,
+    responseLanguage: input.responseLanguage
   });
 
   const { language, normalizedMessage, semantic, stage } = routed;
@@ -55,6 +76,7 @@ export async function chat(input: ChatRequest) {
   let ticketCreated = false;
   let ticketId: string | undefined;
   let responseSources: Array<{ id: string; score: number }> = [];
+  const chatTimings: Record<string, number> = {};
 
   // =========================================================
   // SMALL TALK / CLARIFICATION
@@ -73,6 +95,7 @@ export async function chat(input: ChatRequest) {
   // =========================================================
 
   else if (stage === 'support_issue') {
+    const tTicket = Date.now();
     const ticket = await createTicket({
       conversationId: sessionId,
       customerReference: input.customerReference,
@@ -85,37 +108,11 @@ export async function chat(input: ChatRequest) {
           : 'normal',
       assignedTo: null
     });
+    chatTimings.ticketCreate = Date.now() - tTicket;
 
     ticketCreated = true;
     ticketId = ticket.ticketId;
-
-    const ticketPrompt = `
-The customer reported a ${semantic.category} support issue.
-
-Customer message:
-${input.message}
-
-Detected customer language:
-${language}
-
-A support ticket has already been created.
-
-Ticket ID:
-${ticket.ticketId}
-
-Tell the customer that the ticket was created and that the support team
-will assist within 24 hours.
-
-Rules:
-- Respond entirely in the detected customer language.
-- Preserve the ticket ID exactly.
-- Do not claim the issue is resolved.
-- Do not invent ticket details.
-- Keep the response concise.
-- Return only the customer-facing answer.
-`.trim();
-
-    answer = await generate(ticketPrompt, language);
+    answer = ticketConfirmationReply(ticket.ticketId, language);
   }
 
   // =========================================================
@@ -128,16 +125,89 @@ Rules:
     const hits = routed.hits ?? [];
     const topScore = routed.topScore ?? 0;
 
-    answer = await runAnswerChain({
-      message: input.message,
-      normalizedMessage,
-      language,
-      intent: semantic.intent,
-      category: semantic.category,
-      hits,
-      topScore,
-      minRelevanceScore: env.MIN_RELEVANCE_SCORE
-    });
+    if (routed.answer) {
+      // Cache hit from the orchestrator: skip retrieval-scoring/generation
+      // entirely, this is already a previously-generated grounded answer.
+      answer = routed.answer;
+    } else {
+      const tGenerate = Date.now();
+      try {
+        answer = await runAnswerChain({
+          message: input.message,
+          normalizedMessage,
+          language,
+          intent: semantic.intent,
+          category: semantic.category,
+          hits,
+          topScore,
+          minRelevanceScore: env.MIN_RELEVANCE_SCORE
+        });
+      } catch (error) {
+        chatTimings.answerGenerate = Date.now() - tGenerate;
+        // Hugging Face may temporarily reject inference (for example when
+        // included credits are exhausted). Do not turn that provider failure
+        // into a 502 or an invented answer. Return a deterministic,
+        // language-correct safe fallback instead.
+        const providerError = String(error);
+        if (/402|depleted|credits|inference providers/i.test(providerError)) {
+          const fallbacks: Record<string, string> = {
+            hi: 'माफ़ कीजिए, अभी उत्तर तैयार करने में अस्थायी समस्या है। कृपया थोड़ी देर बाद फिर से प्रयास करें।',
+            mr: 'क्षमस्व, सध्या उत्तर तयार करण्यात तात्पुरती अडचण आहे. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.',
+            en: 'Sorry, there is a temporary problem preparing the answer. Please try again shortly.'
+          };
+          answer = fallbacks[language] ?? fallbacks.en;
+        } else {
+          throw error;
+        }
+      }
+      chatTimings.answerGenerate = chatTimings.answerGenerate ?? Date.now() - tGenerate;
+
+      // Cache the fresh answer for next time. Fire-and-forget: caching
+      // is an optimization, the customer shouldn't wait on it, and a
+      // write failure here must never affect the response they get.
+      // (This one is safe to leave un-awaited even under the serverless
+      // entry point in api/index.ts, unlike the message-log writes below
+      // -- worst case here is simply a missed cache write, not a lost
+      // customer-facing record.)
+      // Cache only successful, grounded answers.
+      // Known intents with at least one retrieved KB hit are cacheable even
+      // when the reranker score is below MIN_RELEVANCE_SCORE. The score is
+      // used to decide answer grounding, but requiring it here can prevent
+      // otherwise valid FAQ answers (for example login) from ever being
+      // written to the cache. Never cache the deterministic provider-error
+      // fallback.
+      const providerFallback =
+        /temporary problem preparing the answer|अस्थायी समस्या|तात्पुरती अडचण/i.test(answer);
+
+      if (
+        !providerFallback &&
+        semantic.intent !== 'unknown_query' &&
+        hits.length > 0
+      ) {
+        try {
+          // Do not make the customer wait for a cache write. setCachedAnswer
+          // populates the local L1 cache synchronously, then persists the same
+          // value to MongoDB for cross-device reuse.
+          void setCachedAnswer(normalizedMessage, language, {
+            answer,
+            intent: semantic.intent,
+            category: semantic.category
+          })
+            .then(() => {
+              console.log('[CACHE] stored', {
+                language,
+                intent: semantic.intent,
+                normalizedMessage
+              });
+            })
+            .catch((cacheError) => {
+              console.warn('[CACHE] store failed:', cacheError);
+            });
+        } catch (cacheError) {
+          console.warn('[CACHE] store scheduling failed:', cacheError);
+        }
+      }
+    }
 
     // Unknown questions must never expose retrieval results, even though
     // the fallback guidance above still draws on them internally.
@@ -155,6 +225,7 @@ Rules:
 
   if (env.CHATBOT_MODE !== 'mock') {
     const db = mongoDb();
+    const tPersist = Date.now();
 
     await db.collection('conversations').updateOne(
       { sessionId },
@@ -163,6 +234,9 @@ Rules:
           sessionId,
           createdAt: new Date(),
           customerReference: input.customerReference
+        },
+        $set: {
+          responseLanguage: language
         }
       },
       { upsert: true }
@@ -190,6 +264,7 @@ Rules:
         createdAt: new Date()
       }
     ]);
+    chatTimings.persist = Date.now() - tPersist;
   } else {
     // Mock mode has no Mongo connection -- keep the in-process memory
     // buffer (langchain/memory.ts) fed so multi-turn context still works
@@ -214,6 +289,23 @@ Rules:
   // =========================================================
   // RESPONSE
   // =========================================================
+
+  // One consolidated line per turn: orchestrator stage timings (language
+  // detection/translation, cache lookup, semantic chain, retrieval+rerank)
+  // merged with this file's own stages (ticket creation, generation,
+  // persistence), plus the true end-to-end total. This is what should be
+  // checked first on any slow request instead of guessing which stage is
+  // the bottleneck.
+  console.log(
+    '[TIMING]',
+    JSON.stringify({
+      sessionId,
+      stage,
+      totalMs: Date.now() - turnStart,
+      ...routed.timings,
+      ...chatTimings
+    })
+  );
 
   return {
     sessionId,

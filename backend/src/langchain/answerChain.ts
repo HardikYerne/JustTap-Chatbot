@@ -59,62 +59,42 @@ Important:
 - Do not introduce unrelated services.
 - Do not introduce unrelated examples.
 - Do not say a service is unavailable.
-- Answer entirely in the detected language.
+- Answer entirely in the requested response language.
 - Keep the answer concise.
 `.trim();
 
     return generate(prompt, input.language);
   }
 
-  // Knowledge-bound fallback: even when there's no sufficiently specific
-  // record (including genuinely unknown_query messages), the answer still
-  // comes from this same grounded chain rather than a hardcoded generic
-  // sentence -- it just falls back to safe, generic JustTap guidance
-  // instead of a specific knowledge record.
-  const guidancePrompt = `
-Detected language: ${input.language}
+  // No sufficiently specific KB record. Use a deterministic safe response
+  // instead of an LLM-generated fallback. This prevents unsupported topics
+  // (especially login/account access) from producing variable or invented
+  // steps, and makes the response safe to cache across devices.
+  //
+  // GROUNDING NOTE: this list used to only cover 5 known topics (find/
+  // book/cancel/reschedule/providers) and left every other topic --
+  // including login/account access, which the KB has no records for at
+  // all -- with no scripted guardrail. That gap is exactly what produced
+  // two different, partly invented answers (including a fabricated
+  // "two-factor authentication" step) to the same "how to login" question.
+  // The rule below is now restrictive by default: for anything not on
+  // this specific list, the model must say it doesn't have exact
+  // information rather than describe steps it has no source for.
+  const safeFallbacks: Record<string, string> = {
+    en: "I don't have exact information about that JustTap topic yet. The JustTap support team can help you with the exact details.",
+    hi: "मेरे पास अभी इस JustTap विषय की सटीक जानकारी नहीं है। JustTap की support team आपको सही जानकारी देने में मदद कर सकती है।",
+    mr: "माझ्याकडे सध्या या JustTap विषयाची अचूक माहिती नाही. JustTap ची support team तुम्हाला योग्य माहिती देण्यात मदत करू शकते."
+  };
 
-User intent: ${input.intent}
+  // These are the only generic instructions we can safely provide without
+  // a matching KB record. They contain no invented product details.
+  if (input.intent === 'knowledge' && /login|account|password|credential/i.test(input.normalizedMessage)) {
+    return safeFallbacks[input.language] ?? safeFallbacks.en;
+  }
 
-User category: ${input.category}
+  if (input.intent === 'unknown_query') {
+    return safeFallbacks[input.language] ?? safeFallbacks.en;
+  }
 
-Original user question:
-${input.message}
-
-There is no sufficiently specific knowledge record
-for this exact question.
-
-Provide only safe, generic guidance for using
-the JustTap application.
-
-IMPORTANT:
-
-- Do NOT say that the service is unavailable.
-- Do NOT claim that JustTap does not provide the service.
-- Do NOT invent a service.
-- Do NOT invent a price.
-- Do NOT invent a provider.
-- Do NOT invent a policy.
-- Do NOT invent availability.
-- Do NOT select a provider.
-- Do NOT perform an application action.
-- If the user asks how to find a service, explain that
-  they can use the Services section of the JustTap app.
-- If the user asks how to book, explain that they can
-  use the relevant service/booking section.
-- If the user asks about cancellation, explain that they
-  can use the relevant booking section and follow the
-  available cancellation instructions.
-- If the user asks about rescheduling, explain that they
-  can use the relevant booking section and follow the
-  available rescheduling instructions.
-- If the user asks about providers, explain that they can
-  search for the required service and area in the app.
-- If the message is unrelated to JustTap, politely say you
-  can only help with JustTap-related questions.
-- Respond entirely in the detected language.
-- Keep the answer concise.
-`.trim();
-
-  return generate(guidancePrompt, input.language);
+  return safeFallbacks[input.language] ?? safeFallbacks.en;
 }
