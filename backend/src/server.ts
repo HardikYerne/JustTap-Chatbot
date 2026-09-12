@@ -76,7 +76,16 @@ export async function initializeApp() {
 
 await initializeApp();
 
-await app.listen({
-  port: env.PORT,
-  host: env.HOST
-});
+/*
+ * Local development:
+ * Start Fastify normally on PORT.
+ *
+ * Vercel:
+ * Vercel manages the server/function listener itself.
+ */
+if (!process.env.VERCEL) {
+  await app.listen({
+    port: env.PORT,
+    host: env.HOST
+  });
+}

@@ -92,3 +92,5 @@ docker-compose.override.yml
 *.crt
 credentials.json
 service-account.json
+.vercel
+.env*
