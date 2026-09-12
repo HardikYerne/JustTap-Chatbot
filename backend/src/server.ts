@@ -1,19 +1,19 @@
+
+
 import Fastify from 'fastify';
+import { pathToFileURL } from 'node:url';
+
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import dns from 'node:dns';
 
 import { env } from './config/env.js';
 import { connectMongo } from './db/mongo.js';
 import { ensureCollection } from './services/vector.js';
+
 import { chatRoutes } from './routes/chat.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { healthRoutes } from './routes/health.js';
-
-// Fix Node.js DNS SRV resolution for MongoDB Atlas
-dns.setServers(['8.8.8.8', '1.1.1.1']);
-
 console.log('[STARTUP] server.ts loaded');
 
 export const app = Fastify({
@@ -93,7 +93,9 @@ export async function initializeApp() {
 
     return reply
       .code(statusCode)
-      .send({ error: 'Internal server error' });
+      .send({
+        error: 'Internal server error'
+      });
   });
 
   console.log('[STARTUP] before ready');
@@ -107,9 +109,31 @@ export async function initializeApp() {
   return app;
 }
 
-await initializeApp();
+/*
+ * Local execution:
+ *   npm run dev
+ *   npm start
+ *
+ * Vercel:
+ *   The application can be imported without automatically
+ *   opening a network port.
+ */
+const isMainModule =
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
 
-await app.listen({
-  port: env.PORT,
-  host: env.HOST
-});
+if (isMainModule) {
+  try {
+    await initializeApp();
+
+    await app.listen({
+      port: env.PORT,
+      host: env.HOST
+    });
+
+    console.log('[STARTUP] listen() succeeded, server is up');
+  } catch (error) {
+    console.error('[STARTUP FAILURE]', error);
+    process.exit(1);
+  }
+}
