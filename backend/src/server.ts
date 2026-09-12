@@ -18,6 +18,7 @@ export const app = Fastify({
   bodyLimit: 512 * 1024
 });
 
+export default app;
 let initialized = false;
 
 export async function initializeApp() {
