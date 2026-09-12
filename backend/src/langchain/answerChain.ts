@@ -1,15 +1,3 @@
-// src/langchain/answerChain.ts
-//
-// Diagram stage: Grounded Answer LLM Chain -> User's Language.
-//
-// This is the single place that turns retrieved KB context into a
-// customer-facing answer. It replaces the two near-duplicate prompt
-// blocks that used to live inline in chat.ts (5A strong match / 5C low
-// score guidance). The strict grounding rules themselves (never invent
-// services/prices/providers, answer only from context, respond in the
-// user's language, etc.) live in the model's system prompt -- see
-// services/huggingface.ts generate() -- so this file only builds the
-// task-specific instructions for each call.
 
 import { generate } from '../services/huggingface.js';
 import { SearchHit } from '../models/types.js';

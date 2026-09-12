@@ -1,18 +1,3 @@
-// src/langchain/orchestrator.ts
-//
-// The LangChain orchestrator from the target diagram:
-//
-//   Language Detection -> Normalization -> Semantic LLM Chain
-//     -> Intent / Service / Entities -> Conversation State
-//       -> needs_clarification -> Ask user
-//       -> complete             -> RAG Chain -> Reranker -> Grounded
-//                                  Answer LLM Chain -> User's Language
-//
-// This module owns the *routing* decision (small talk / clarification /
-// support ticket / grounded RAG answer). It does not itself create
-// tickets or write to the database -- those stay in services/chat.ts,
-// which still owns the "other connections" (Mongo, ticket creation)
-// exactly as before.
 
 import { RunnableLambda } from '@langchain/core/runnables';
 
