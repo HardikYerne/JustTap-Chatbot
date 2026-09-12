@@ -2,10 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import fastifyStatic from '@fastify/static';
 import dns from 'node:dns';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { env } from './config/env.js';
 import { connectMongo } from './db/mongo.js';
@@ -15,9 +12,6 @@ import { ticketRoutes } from './routes/tickets.js';
 import { healthRoutes } from './routes/health.js';
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export const app = Fastify({
   logger: true,
@@ -58,30 +52,6 @@ export async function initializeApp() {
   await app.register(chatRoutes);
   await app.register(ticketRoutes);
 
-  // Serve React/Vite frontend
-  const frontendPath = path.resolve(__dirname, '../../frontend-dist');
-
-  await app.register(fastifyStatic, {
-    root: frontendPath,
-    prefix: '/'
-  });
-
-  // React SPA fallback
-  app.setNotFoundHandler(async (request, reply) => {
-    if (
-      request.method === 'GET' &&
-      !request.url.startsWith('/api/')
-    ) {
-      return reply.sendFile('index.html');
-    }
-
-    return reply.code(404).send({
-      message: `Route ${request.method}:${request.url} not found`,
-      error: 'Not Found',
-      statusCode: 404
-    });
-  });
-
   app.setErrorHandler((error: unknown, request, reply) => {
     request.log.error(error);
 
@@ -101,16 +71,9 @@ export async function initializeApp() {
   await app.ready();
 
   initialized = true;
-
   return app;
 }
 
-// Vercel's zero-config Fastify support (vercel.com/docs/frameworks/backend/fastify)
-// expects this entry point to call listen() unconditionally, the same way it
-// runs locally -- Vercel's build step handles wrapping it into a Function.
-// The old manual pattern here (skipping listen() specifically when deployed
-// on Vercel, paired with a separate api/index.ts handler) predates that
-// zero-config support and actively fights it, so it's removed.
 await initializeApp();
 
 await app.listen({
