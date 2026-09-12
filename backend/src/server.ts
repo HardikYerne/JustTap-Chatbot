@@ -77,9 +77,7 @@ export async function initializeApp() {
 
 await initializeApp();
 
-if (!process.env.VERCEL) {
-  await app.listen({
-    port: env.PORT,
-    host: env.HOST
-  });
-}
+await app.listen({
+  port: env.PORT,
+  host: env.HOST
+});
