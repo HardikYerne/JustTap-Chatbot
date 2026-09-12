@@ -84,9 +84,11 @@ await initializeApp();
  * Vercel:
  * Vercel manages the server/function listener itself.
  */
-if (!process.env.VERCEL) {
-  await app.listen({
-    port: env.PORT,
-    host: env.HOST
-  });
-}
+await initializeApp();
+
+// Vercel's zero-config Fastify support expects listen() to be called
+// unconditionally, the same way it runs locally.
+await app.listen({
+  port: env.PORT,
+  host: env.HOST
+});
