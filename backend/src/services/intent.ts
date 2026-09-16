@@ -30,7 +30,7 @@ const rules: Rule[] = [
   {
     intent: 'greeting',
     category: 'general',
-    re: /^(hi|hello|hey|namaste|नमस्ते|नमस्कार|हाय|हॅलो|hii|hiii|helloo|heyy|hey there|hi there|hello there|good morning|good afternoon|good evening|good night|sup|wassup|what's up|whats up|hola|bonjour|greetings)\b/iu
+    re: /^(hi|hello|hey|namaste|नमस्ते|नमस्कार|हाय|हॅलो|hii|hiii|helloo|heyy|heey|heyy|heeey|heyyy|heyy|hey there|hi there|hello there|good morning|good afternoon|good evening|good night|sup|wassup|what's up|whats up|hola|bonjour|greetings)\b/iu
   },
 
   {
@@ -64,7 +64,7 @@ const rules: Rule[] = [
   {
     intent: 'about_justtap',
     category: 'company',
-    re: /(?:about\s+justtap|tell\s+me\s+about\s+justtap|justtap\s+के\s+बारे|justtap\s+बद्दल|justtap\s+विषयी)/iu
+    re: /(?:about\s+justtap|tell\s+me\s+about\s+justtap|what\s+is\s+justtap|what\s+does\s+justtap\s+do|how\s+does\s+justtap\s+work|tell\s+me\s+more\s+about\s+justtap|information\s+about\s+justtap|justtap\s+information|i\s+need\s+information|i\s+need\s+some\s+information|i\s+need\s+information\s+about\s+justtap|i\s+want\s+information|i\s+want\s+some\s+information|give\s+me\s+information|give\s+me\s+some\s+information|can\s+you\s+give\s+me\s+information|please\s+give\s+me\s+information|need\s+information\s+about\s+justtap|justtap\s+के\s+बारे|justtap\s+बद्दल|justtap\s+विषयी)/iu
   },
 
   {
