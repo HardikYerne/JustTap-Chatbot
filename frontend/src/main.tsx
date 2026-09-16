@@ -270,6 +270,38 @@ function Mascot({
   );
 }
 
+function renderMessageText(text: string) {
+  const linkPattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    parts.push(
+      <a
+        key={`message-link-${match.index}`}
+        href={match[2]}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {match[1]}
+      </a>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
+}
+
 function ChatbotPanel({
   onClose
 }: {
@@ -935,7 +967,9 @@ function ChatbotPanel({
                       `bubble ${message.role}`
                     }
                   >
-                    {message.text}
+                    {message.role === 'bot'
+                      ? renderMessageText(message.text)
+                      : message.text}
                     {message.id === streamingId && (
                       <span className="stream-caret" />
                     )}
