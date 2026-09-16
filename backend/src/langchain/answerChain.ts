@@ -14,7 +14,23 @@ export type GroundedAnswerInput = {
 };
 
 export async function runAnswerChain(input: GroundedAnswerInput): Promise<string> {
-  const strongMatch = input.hits.length > 0 && input.topScore >= input.minRelevanceScore;
+  const strongMatch =
+    input.hits.length > 0 &&
+    input.topScore >= input.minRelevanceScore;
+
+  // Return predefined KB answers directly.
+  // This preserves their exact structure and avoids LLM paraphrasing.
+  const predefinedAnswerIds = new Set([
+    'svc_overview_001',
+  ]);
+
+  if (
+    strongMatch &&
+    input.hits[0]?.id &&
+    predefinedAnswerIds.has(input.hits[0].id)
+  ) {
+    return input.hits[0].answer;
+  }
 
   if (strongMatch) {
     const context = input.hits
@@ -24,7 +40,7 @@ export async function runAnswerChain(input: GroundedAnswerInput): Promise<string
       )
       .join('\n');
 
-    const prompt = `
+  const prompt = `
 Detected language: ${input.language}
 
 User intent: ${input.intent}
@@ -32,17 +48,21 @@ User intent: ${input.intent}
 User category: ${input.category}
 
 Original user question:
+
 ${input.message}
 
 Normalized English query:
+
 ${input.normalizedMessage}
 
 Knowledge context:
+
 ${context}
 
 Answer the user using ONLY the supplied knowledge context.
 
 Important:
+
 - Do not invent information.
 - Do not introduce unrelated services.
 - Do not introduce unrelated examples.
@@ -53,7 +73,22 @@ Important:
   (or other non-English) answer, including common nouns and instructions.
   Only proper nouns that have no real translation (the app name "JustTap")
   may stay as-is.
-- Keep the answer concise.
+- Keep the answer concise but complete.
+- Always provide the answer in a clear, structured format.
+- Start with a short, relevant heading when appropriate.
+- Use bullet points when presenting multiple items.
+- Use numbered steps when explaining a process or instructions.
+- Use short paragraphs instead of one large paragraph.
+- Group related information into logical sections.
+- Use bold labels for important information when appropriate.
+- If the knowledge context contains categories, preserve those categories.
+- If the knowledge context contains a list of services, preserve the complete relevant list.
+- If the user asks how to do something, present the instructions as numbered steps.
+- If the user asks about a problem, organize the response into the problem,
+  relevant information, and next steps when supported by the knowledge context.
+- Do not change, omit, or invent information from the supplied knowledge context.
+- Do not add information that is not supported by the knowledge context.
+
 `.trim();
 
     return generate(prompt, input.language);

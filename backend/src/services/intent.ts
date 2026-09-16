@@ -70,7 +70,7 @@ const rules: Rule[] = [
   {
     intent: 'what_is_justtap',
     category: 'company',
-    re: /(?:what\s+is\s+justtap|what's\s+justtap|justtap\s+क्या\s+है|justtap\s+काय\s+आहे)/iu
+    re: /(?:what\s+is\s+justtap|what's\s+justtap|what\s+exactly\s+is\s+justtap|what\s+is\s+the\s+justtap|what\s+does\s+justtap\s+mean|what\s+is\s+justtap\s+used\s+for|what\s+is\s+justtap\s+all\s+about|tell\s+me\s+what\s+justtap\s+is|can\s+you\s+explain\s+justtap|explain\s+justtap|tell\s+me\s+about\s+justtap|justtap\s+क्या\s+है|justtap\s+क्या\s+होता\s+है|justtap\s+क्या\s+है\s+बताओ|justtap\s+के\s+बारे\s+में\s+बताओ|justtap\s+का\s+मतलब\s+क्या\s+है|justtap\s+का\s+उपयोग\s+क्या\s+है|justtap\s+काय\s+आहे|justtap\s+म्हणजे\s+काय|justtap\s+कशासाठी\s+आहे|justtap\s+बद्दल\s+सांगा)/iu
   },
 
   {
