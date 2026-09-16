@@ -1,3 +1,5 @@
+
+import { generate } from '../services/huggingface.js';
 import { SearchHit } from '../models/types.js';
 
 export type GroundedAnswerInput = {
@@ -11,49 +13,116 @@ export type GroundedAnswerInput = {
   minRelevanceScore: number;
 };
 
-export async function runAnswerChain(
-  input: GroundedAnswerInput
-): Promise<string> {
+export async function runAnswerChain(input: GroundedAnswerInput): Promise<string> {
   const strongMatch =
     input.hits.length > 0 &&
     input.topScore >= input.minRelevanceScore;
 
+  // Return predefined KB answers directly.
+  // This preserves their exact structure and avoids LLM paraphrasing.
+  const predefinedAnswerIds = new Set([
+    'svc_overview_001',
+  ]);
+
+  if (
+    strongMatch &&
+    input.hits[0]?.id &&
+    predefinedAnswerIds.has(input.hits[0].id)
+  ) {
+    return input.hits[0].answer;
+  }
+
+  if (strongMatch) {
+    const context = input.hits
+      .map(
+        (hit, index) =>
+          `[${index + 1}] intent=${hit.intent}; category=${hit.category}; service=${hit.sub_service ?? ''}; Q=${hit.question}; A=${hit.answer}`
+      )
+      .join('\n');
+
+  const prompt = `
+Detected language: ${input.language}
+
+User intent: ${input.intent}
+
+User category: ${input.category}
+
+Original user question:
+
+${input.message}
+
+Normalized English query:
+
+${input.normalizedMessage}
+
+Knowledge context:
+
+${context}
+
+Answer the user using ONLY the supplied knowledge context.
+
+Important:
+
+- Do not invent information.
+- Do not introduce unrelated services.
+- Do not introduce unrelated examples.
+- Do not say a service is unavailable.
+- Answer entirely in the requested response language. Every word of the
+  answer must be in that language's script -- do not leave any part of the
+  sentence in English (or any other language) inside an otherwise-Hindi
+  (or other non-English) answer, including common nouns and instructions.
+  Only proper nouns that have no real translation (the app name "JustTap")
+  may stay as-is.
+- Keep the answer concise but complete.
+- Always provide the answer in a clear, structured format.
+- Start with a short, relevant heading when appropriate.
+- Use bullet points when presenting multiple items.
+- Use numbered steps when explaining a process or instructions.
+- Use short paragraphs instead of one large paragraph.
+- Group related information into logical sections.
+- Use bold labels for important information when appropriate.
+- If the knowledge context contains categories, preserve those categories.
+- If the knowledge context contains a list of services, preserve the complete relevant list.
+- If the user asks how to do something, present the instructions as numbered steps.
+- If the user asks about a problem, organize the response into the problem,
+  relevant information, and next steps when supported by the knowledge context.
+- Do not change, omit, or invent information from the supplied knowledge context.
+- Do not add information that is not supported by the knowledge context.
+
+`.trim();
+
+    return generate(prompt, input.language);
+  }
+
+  // No sufficiently specific KB record. Use a deterministic safe response
+  // instead of an LLM-generated fallback. This prevents unsupported topics
+  // (especially login/account access) from producing variable or invented
+  // steps, and makes the response safe to cache across devices.
+  //
+  // GROUNDING NOTE: this list used to only cover 5 known topics (find/
+  // book/cancel/reschedule/providers) and left every other topic --
+  // including login/account access, which the KB has no records for at
+  // all -- with no scripted guardrail. That gap is exactly what produced
+  // two different, partly invented answers (including a fabricated
+  // "two-factor authentication" step) to the same "how to login" question.
+  // The rule below is now restrictive by default: for anything not on
+  // this specific list, the model must say it doesn't have exact
+  // information rather than describe steps it has no source for.
   const safeFallbacks: Record<string, string> = {
     en: "I don't have exact information about that JustTap topic yet. The JustTap support team can help you with the exact details.",
     hi: "मेरे पास अभी इस JustTap विषय की सटीक जानकारी नहीं है। JustTap की सहायता टीम आपको सही जानकारी देने में मदद कर सकती है।",
     mr: "माझ्याकडे सध्या या JustTap विषयाची अचूक माहिती नाही. JustTap ची सहाय्य टीम तुम्हाला योग्य माहिती देण्यात मदत करू शकते."
   };
 
-  /*
-   * Handle unsupported account/login questions BEFORE retrieval output
-   * can reach an LLM. This prevents invented login steps and unrelated
-   * service information.
-   */
-  if (
-    /login|log in|sign in|signin|account|password|credential/i.test(
-      input.normalizedMessage
-    )
-  ) {
+  // These are the only generic instructions we can safely provide without
+  // a matching KB record. They contain no invented product details.
+  if (input.intent === 'knowledge' && /login|account|password|credential/i.test(input.normalizedMessage)) {
     return safeFallbacks[input.language] ?? safeFallbacks.en;
   }
 
-  /*
-   * A strong knowledge match is already grounded in the knowledge base.
-   * Return ONLY the best matching answer.
-   *
-   * Do not send multiple hits to the LLM because the LLM can combine
-   * unrelated records and invent details.
-   *
-   * This also preserves Markdown headings, bullets, numbered steps and
-   * Learn More links stored in the knowledge base.
-   */
-  if (strongMatch && input.hits[0]?.answer?.trim()) {
-    return input.hits[0].answer.trim();
+  if (input.intent === 'unknown_query') {
+    return safeFallbacks[input.language] ?? safeFallbacks.en;
   }
 
-  /*
-   * No sufficiently strong grounded answer.
-   * Return a deterministic fallback instead of allowing the LLM to guess.
-   */
   return safeFallbacks[input.language] ?? safeFallbacks.en;
 }
