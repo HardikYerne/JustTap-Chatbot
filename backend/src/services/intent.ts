@@ -48,7 +48,7 @@ const rules: Rule[] = [
   {
     intent: 'help',
     category: 'general',
-    re: /(?:help|help\s+me|can\s+you\s+help|could\s+you\s+help|i\s+need\s+help|i\s+need\s+some\s+help|please\s+help|please\s+help\s+me|need\s+help|need\s+some\s+help|help\s+please|assist\s+me|i\s+need\s+assistance|can\s+you\s+assist|support\s+me|मदद|मदद\s+करो|मदद\s+करें|मेरी\s+मदद\s+करो|मेरी\s+मदद\s+करें|मुझे\s+मदद\s+चाहिए|सहायता|सहायता\s+चाहिए|सहाय्य|मदत|मदत\s+करा|मला\s+मदत\s+हवी)(?:\s|$)/iu
+    re: /(?:help|can\s+ you\s+ help\s+ me|can\s+you\s+help\s+me|help\s+me|can\s+you\s+help|could\s+you\s+help|i\s+need\s+help|i\s+need\s+some\s+help|please\s+help|please\s+help\s+me|need\s+help|need\s+some\s+help|help\s+please|assist\s+me|i\s+need\s+assistance|can\s+you\s+assist|support\s+me|मदद|मदद\s+करो|मदद\s+करें|मेरी\s+मदद\s+करो|मेरी\s+मदद\s+करें|मुझे\s+मदद\s+चाहिए|सहायता|सहायता\s+चाहिए|सहाय्य|मदत|मदत\s+करा|मला\s+मदत\s+हवी)(?:\s|$)/iu
   },
 
   {

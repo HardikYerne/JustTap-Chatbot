@@ -80,31 +80,31 @@ Important:
 - The app name "JustTap" must remain unchanged.
 
 - Keep the answer concise but complete.
-- Generate the response naturally from the supplied knowledge context.
 - Use a clear and readable structure.
-- Do not use Markdown bold syntax such as **text**.
-- Do not use Markdown heading syntax such as #, ##, ###.
+- Do not use Markdown bold (**text**).
+- Do not use Markdown italic (*text*).
+- Do not use Markdown heading syntax (#, ##, ###).
 - Do not use separator lines such as ====, ----, or ****.
 
-- When presenting multiple services under categories, use this exact structure:
+- For a complete services overview:
+  - Start with:
+    🌟 JustTap Services Overview
+  - Use a short introductory sentence.
+  - Use "-" for category names.
+  - Use numbered lists for services.
+  - Keep one blank line between categories.
+  - Include all relevant categories and services from the knowledge context.
+  - Do not add booking, pricing, cancellation, or other information unless the user explicitly asks for it.
 
-  🌟 JustTap Services Overview
+- For a specific service:
+  - Answer only about that service.
+  - Do not append the complete services overview.
 
-  JustTap provides a variety of services across different categories. Here's an overview of the services we offer:
+- For a booking request:
+  - Answer only the booking-related information supported by the knowledge context.
+  - Do not append the services overview.
 
-  - Home Services
-    1. Plumber
-    2. Electrician
-    3. Carpenter
-    4. AC Technician
-    5. Painter
-
-  - Auto Services
-    1. Bike Mechanic
-    2. Car Mechanic
-    3. Car Wash
-
-- Preserve the actual categories and services from the knowledge context.
+- Preserve the exact service names and categories from the knowledge context.
 - Do not invent, rename, merge, or remove services.
 - Use "-" for category bullets.
 - Use numbered lists for services inside a category.
