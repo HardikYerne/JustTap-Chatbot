@@ -12,6 +12,31 @@ export type GroundedAnswerInput = {
   minRelevanceScore: number;
 };
 
+/**
+ * Strip any Markdown artifacts the model produced despite the plain-text
+ * instructions in the prompt. This is a deterministic safety net -- the
+ * prompt rules alone are not reliable enough on their own, so every
+ * response is normalized here before it reaches the user, regardless of
+ * intent, category, or whether it used the services-overview template.
+ */
+function stripMarkdownArtifacts(text: string): string {
+  return text
+    // **bold** / __bold__ -> bold
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    // Markdown headings ("# Title", "## Title") -> plain line
+    .replace(/^#{1,6}\s+/gm, '')
+    // "* item" or "+ item" bullets -> "- item"
+    .replace(/^(\s*)[*+](\s+)/gm, '$1-$2')
+    // any remaining single-asterisk emphasis *word* -> word
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    // "====" / "----" separator lines -> removed
+    .replace(/^[=\-]{3,}\s*$/gm, '')
+    // collapse 3+ blank lines left behind by the removals above
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export async function runAnswerChain(
   input: GroundedAnswerInput
 ): Promise<string> {
@@ -103,22 +128,33 @@ GENERAL RULES:
 - Use numbered items for services within a category.
 - Numbering must restart at 1 for every category.
 
-PLAIN-TEXT FORMAT RULES:
+PLAIN-TEXT FORMAT RULES (apply to EVERY answer, not only the services overview):
 
-- Do NOT use Markdown formatting.
-- Do NOT use "**".
-- Do NOT use "__".
+- Do NOT use Markdown formatting anywhere in the response.
+- Do NOT use "**" or "__" for bold or emphasis, even around a short title like "Login Instructions" or "To Book Plumber".
 - Do NOT use Markdown headings.
 - Do NOT use "#" for headings.
-- Do NOT use "=" characters as separators.
-- Do NOT generate "====".
-- Do NOT generate horizontal separators.
-- Do NOT use "*" as a bullet.
-- Do NOT use "+" as a bullet.
-- Do NOT put "*" before category names.
+- Do NOT use "=" or "-" characters as separator lines.
+- Do NOT generate "====" or "----" lines.
+- Do NOT use "*" or "+" as a bullet character. Use "-" for bullets instead.
+- Do NOT put "*" before category names, step titles, or section labels.
 - Do NOT put a colon after category names.
-- Do NOT put Markdown syntax around category names.
-- Do NOT put Markdown syntax around the main title.
+- Do NOT put Markdown syntax around category names, step titles, or the main title.
+- A short title line (e.g. "To Book Plumber", "Login Instructions") must be plain text, on its own line, with no "**", no "#", and no trailing colon.
+
+GENERAL (NON-OVERVIEW) ANSWER STRUCTURE:
+
+For step-by-step instructions (booking a service, logging in, troubleshooting, etc.), use exactly this shape:
+
+Plain-text title line, no symbols around it
+
+Short one- or two-line intro sentence if needed.
+
+1. First step
+2. Second step
+3. Third step
+
+Only add a second plain-text section title (e.g. "If you are having trouble logging in") followed by its own numbered or "-" bulleted list if the knowledge context actually supports that extra section. Never wrap that section title in "**" either.
 
 For a complete services overview, use this exact STRUCTURE:
 
@@ -165,14 +201,14 @@ Short introductory paragraph.
   5. Financial Advisor
 
 COMPLETE SERVICES REQUEST:
-${completeServicesRequest ? 'YES - The user is requesting the complete services overview. Include all relevant categories and all services supported by the knowledge context.' : 'NO - Answer according to the specific user request rather than automatically producing the complete services overview.'}
+${completeServicesRequest ? 'YES - The user is requesting the complete services overview. Include all relevant categories and all services supported by the knowledge context.' : 'NO - Answer according to the specific user request rather than automatically producing the complete services overview. Follow the GENERAL (NON-OVERVIEW) ANSWER STRUCTURE above instead.'}
 
 IMPORTANT:
-The structure above is a FORMAT EXAMPLE only.
+The structures above are FORMAT EXAMPLES only.
 
 Do NOT blindly copy the example's services.
 
-Use the knowledge context as the source of truth for the actual categories and services.
+Use the knowledge context as the source of truth for the actual categories, services, and steps.
 
 For a complete services request:
 1. Start with exactly:
@@ -188,8 +224,11 @@ For a complete services request:
 9. Do not add a separator after the title.
 10. Do not add a conclusion unless it is explicitly supported by the knowledge context.
 
+For any other request, follow the GENERAL (NON-OVERVIEW) ANSWER STRUCTURE and the PLAIN-TEXT FORMAT RULES above exactly, including for the title line and any "If you are having trouble..." style sub-section.
+
 Return ONLY the final answer.
 `.trim();
 
-  return generate(prompt, input.language);
+  const rawAnswer = await generate(prompt, input.language);
+  return stripMarkdownArtifacts(rawAnswer);
 }
