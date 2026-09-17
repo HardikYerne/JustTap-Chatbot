@@ -563,6 +563,10 @@ function ChatbotPanel({
   const [mostAskedQuestions, setMostAskedQuestions] =
     useState<MostAskedItem[]>([]);
 
+  // Top 3 is shown when the chatbot panel is opened/reopened, not while
+  // the user is actively chatting. It does not alter the Top 3 data.
+  const [showMostAskedQuestions, setShowMostAskedQuestions] =
+    useState(true);
 
   const t = T[lang];
 
@@ -664,6 +668,7 @@ function ChatbotPanel({
     setStreamingId(null);
     setFeedback({});
     setMostAskedQuestions(getMostAskedDisplay(lang));
+    setShowMostAskedQuestions(false);
   };
 
   const saveChatToFile = () => {
@@ -763,6 +768,9 @@ function ChatbotPanel({
     }
 
     setInput('');
+    // Top 3 is a re-entry/landing panel. Once the user starts chatting,
+    // hide it so the same question is not duplicated above the live chat.
+    setShowMostAskedQuestions(false);
 
     // Sending a message means the customer wants to see it (and the
     // reply that follows) right away — jump to the latest message even
@@ -1151,32 +1159,34 @@ function ChatbotPanel({
           </div>
         </div>
 
-        <section className="most-asked" aria-label={t.mostAsked}>
-          <div className="most-asked-head">
-            <span className="most-asked-title">{t.mostAsked}</span>
-            <span className="most-asked-badge">TOP 3</span>
-          </div>
+        {showMostAskedQuestions && (
+          <section className="most-asked" aria-label={t.mostAsked}>
+            <div className="most-asked-head">
+              <span className="most-asked-title">{t.mostAsked}</span>
+              <span className="most-asked-badge">TOP 3</span>
+            </div>
 
-          <div className="most-asked-list">
-            {mostAskedQuestions.map((item, index) => (
-              <button
-                key={`${item.question}-${index}`}
-                type="button"
-                className="most-asked-item"
-                onClick={() =>
-                  void ask(
-                    item.question,
-                    item.count === 0 && isFirstVisitExample(lang, item.question)
-                  )
-                }
-              >
-                <span className="most-asked-number">{index + 1}</span>
-                <span className="most-asked-question">{item.question}</span>
-                <span className="most-asked-arrow">›</span>
-              </button>
-            ))}
-          </div>
-        </section>
+            <div className="most-asked-list">
+              {mostAskedQuestions.map((item, index) => (
+                <button
+                  key={`${item.question}-${index}`}
+                  type="button"
+                  className="most-asked-item"
+                  onClick={() =>
+                    void ask(
+                      item.question,
+                      item.count === 0 && isFirstVisitExample(lang, item.question)
+                    )
+                  }
+                >
+                  <span className="most-asked-number">{index + 1}</span>
+                  <span className="most-asked-question">{item.question}</span>
+                  <span className="most-asked-arrow">›</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div
           className="messages"
