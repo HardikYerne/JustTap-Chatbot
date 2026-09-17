@@ -13,6 +13,22 @@ export type GroundedAnswerInput = {
   minRelevanceScore: number;
 };
 
+// Predefined KB answers that need a version in every supported response
+// language, since they're returned verbatim (no generation/translation
+// step) to preserve exact structure. Add a language here whenever a new
+// predefined answer ID needs to support it.
+//
+// DRAFT TRANSLATIONS: the hi/mr text below was drafted for structure/
+// correctness of the fix, not verified by a native speaker for tone --
+// please have someone review the actual wording before this goes live.
+const predefinedAnswers: Record<string, Record<string, string>> = {
+  svc_overview_001: {
+    en: "JustTap provides Home Services (Plumber, Electrician, Carpenter, AC Technician, Painter), Auto Services (Bike Mechanic, Car Mechanic, Car Wash), Domestic Services (Maid Service, Security Guard, Gardener, Cleaner), Technical Services (Software Developer, Web Designer, Mobile App Developer, Computer Repair Technician, Digital Marketing Expert), Education Services (Online Tutor, Spoken English Trainer, Computer Trainer, Coaching Institute), and Business Services (Accountant, Tax Consultant, CA, Insurance Agent, Financial Advisor).",
+    hi: "JustTap होम सर्विसेज (Plumber, Electrician, Carpenter, AC Technician, Painter), ऑटो सर्विसेज (Bike Mechanic, Car Mechanic, Car Wash), डोमेस्टिक सर्विसेज (Maid Service, Security Guard, Gardener, Cleaner), टेक्निकल सर्विसेज (Software Developer, Web Designer, Mobile App Developer, Computer Repair Technician, Digital Marketing Expert), एजुकेशन सर्विसेज (Online Tutor, Spoken English Trainer, Computer Trainer, Coaching Institute), और बिज़नेस सर्विसेज (Accountant, Tax Consultant, CA, Insurance Agent, Financial Advisor) प्रदान करता है।",
+    mr: "JustTap होम सर्व्हिसेस (Plumber, Electrician, Carpenter, AC Technician, Painter), ऑटो सर्व्हिसेस (Bike Mechanic, Car Mechanic, Car Wash), डोमेस्टिक सर्व्हिसेस (Maid Service, Security Guard, Gardener, Cleaner), टेक्निकल सर्व्हिसेस (Software Developer, Web Designer, Mobile App Developer, Computer Repair Technician, Digital Marketing Expert), एज्युकेशन सर्व्हिसेस (Online Tutor, Spoken English Trainer, Computer Trainer, Coaching Institute), आणि बिझनेस सर्व्हिसेस (Accountant, Tax Consultant, CA, Insurance Agent, Financial Advisor) पुरवते."
+  }
+};
+
 export async function runAnswerChain(input: GroundedAnswerInput): Promise<string> {
   const strongMatch =
     input.hits.length > 0 &&
@@ -20,16 +36,22 @@ export async function runAnswerChain(input: GroundedAnswerInput): Promise<string
 
   // Return predefined KB answers directly.
   // This preserves their exact structure and avoids LLM paraphrasing.
-  const predefinedAnswerIds = new Set([
-    'svc_overview_001',
-  ]);
-
+  //
+  // Picks the version matching input.language from predefinedAnswers above
+  // instead of returning input.hits[0].answer directly -- the KB record's
+  // own answer field is English-only, so returning it verbatim regardless
+  // of language meant a Hindi/Marathi conversation always got an English
+  // reply for this one answer, even though every other reply (small talk,
+  // the general LLM-generated branch below) correctly used the requested
+  // language. Falls back to English if a language isn't drafted yet, same
+  // fallback pattern safeFallbacks already uses below.
   if (
     strongMatch &&
     input.hits[0]?.id &&
-    predefinedAnswerIds.has(input.hits[0].id)
+    predefinedAnswers[input.hits[0].id]
   ) {
-    return input.hits[0].answer;
+    const versions = predefinedAnswers[input.hits[0].id];
+    return versions[input.language] ?? versions.en;
   }
 
   if (strongMatch) {
