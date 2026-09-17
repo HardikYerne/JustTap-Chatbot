@@ -156,59 +156,32 @@ Short one- or two-line intro sentence if needed.
 
 Only add a second plain-text section title (e.g. "If you are having trouble logging in") followed by its own numbered or "-" bulleted list if the knowledge context actually supports that extra section. Never wrap that section title in "**" either.
 
-For a complete services overview, use this exact STRUCTURE:
+For a complete services overview, use this exact STRUCTURE. This is a FORMAT SKELETON only -- the words in angle brackets are placeholders, not real data:
 
 🌟 JustTap Services Overview
 
 Short introductory paragraph.
 
-- Home Services
-  1. Plumber
-  2. Electrician
-  3. Carpenter
-  4. AC Technician
-  5. Painter
+- <Category name, taken from the knowledge context>
+  1. <First service in this category>
+  2. <Second service in this category>
+  3. <continue numbering for every remaining service in this category>
 
-- Auto Services
-  1. Bike Mechanic
-  2. Car Mechanic
-  3. Car Wash
+- <Next category name, taken from the knowledge context>
+  1. <First service in this category>
+  2. <continue numbering for every remaining service in this category>
 
-- Domestic Services
-  1. Maid Service
-  2. Security Guard
-  3. Gardener
-  4. Cleaner
-
-- Technical Services
-  1. Software Developer
-  2. Web Designer
-  3. Mobile App Developer
-  4. Computer Repair Technician
-  5. Digital Marketing Expert
-
-- Education Services
-  1. Online Tutor
-  2. Spoken English Trainer
-  3. Computer Trainer
-  4. Coaching Institute
-
-- Business Services
-  1. Accountant
-  2. Tax Consultant
-  3. CA
-  4. Insurance Agent
-  5. Financial Advisor
+Repeat one "- Category" block for every category that actually appears in the knowledge context -- there may be more or fewer than shown above, and each category may have more or fewer services than shown above. Include ALL categories and ALL services the knowledge context provides, however many there are (this may be 6 services, 25 services, 40 services, or any other number). Never stop early, never drop a category or service that is present in the context, and never add one that is not.
 
 COMPLETE SERVICES REQUEST:
 ${completeServicesRequest ? 'YES - The user is requesting the complete services overview. Include all relevant categories and all services supported by the knowledge context.' : 'NO - Answer according to the specific user request rather than automatically producing the complete services overview. Follow the GENERAL (NON-OVERVIEW) ANSWER STRUCTURE above instead.'}
 
 IMPORTANT:
-The structures above are FORMAT EXAMPLES only.
+The structures above are FORMAT SKELETONS only, using placeholder text in angle brackets.
 
-Do NOT blindly copy the example's services.
+Do NOT copy the placeholder category or service names -- they are not real.
 
-Use the knowledge context as the source of truth for the actual categories, services, and steps.
+Use the knowledge context as the sole source of truth for the actual categories, services, and steps, however many there are.
 
 For a complete services request:
 1. Start with exactly:
