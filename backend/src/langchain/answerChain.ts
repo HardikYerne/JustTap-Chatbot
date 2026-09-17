@@ -254,12 +254,6 @@ Important:
   - Do not add unsupported booking steps.
   - Do not mention, list, recommend, or append any other service or category unless the user explicitly asks for them.
 
-- For a complete services overview:
-  - Use the heading:
-    **🌟 JustTap Services Overview**
-  - Provide a short introduction.
-  - Group services by their categories.
-  - Use "-" for categories.
   - Use numbered lists for services under each category.
   - Include the complete relevant list from the knowledge context.
   - Do not add booking, pricing, cancellation, or unrelated information unless explicitly requested.
@@ -267,7 +261,10 @@ Important:
 - Preserve the exact service names and category names from the knowledge context.
 - Do not invent, rename, merge, reorder, or remove services.
 - Do not use "..." when the knowledge context contains the complete list.
-
+- Use "-" for categories.
+- Use numbered lists for services under each category.
+- Include the complete relevant list from the knowledge context.
+- Do not add booking, pricing, cancellation, or unrelated information unless explicitly requested.
 - For Hindi:
   - Write the explanatory content in Hindi.
   - Keep service names and category names exactly as provided in the knowledge context.
