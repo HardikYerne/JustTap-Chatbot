@@ -23,7 +23,7 @@ export type GroundedAnswerInput = {
 // please have someone review the actual wording before this goes live.
 const predefinedAnswers: Record<string, Record<string, string>> = {
   svc_overview_001: {
-    en: `🌟 JustTap Services Overview
+    en: `**🌟 JustTap Services Overview**
 
 JustTap provides a variety of services across different categories. Here's an overview of the services we offer:
 
@@ -64,83 +64,83 @@ JustTap provides a variety of services across different categories. Here's an ov
   3. CA
   4. Insurance Agent
   5. Financial Advisor`,
-    hi: `🌟 JustTap Services Overview
+    hi: `**🌟 JustTap Services Overview**
 
-JustTap अलग-अलग श्रेणियों में कई सेवाएँ प्रदान करता है। यहाँ हमारी सेवाओं का अवलोकन है:
+JustTap अलग-अलग categories में कई services प्रदान करता है। यहाँ उपलब्ध services का संक्षिप्त overview है:
 
-- होम सर्विसेज
+- Home Services
   1. Plumber
   2. Electrician
   3. Carpenter
   4. AC Technician
   5. Painter
 
-- ऑटो सर्विसेज
+- Auto Services
   1. Bike Mechanic
   2. Car Mechanic
   3. Car Wash
 
-- डोमेस्टिक सर्विसेज
+- Domestic Services
   1. Maid Service
   2. Security Guard
   3. Gardener
   4. Cleaner
 
-- टेक्निकल सर्विसेज
+- Technical Services
   1. Software Developer
   2. Web Designer
   3. Mobile App Developer
   4. Computer Repair Technician
   5. Digital Marketing Expert
 
-- एजुकेशन सर्विसेज
+- Education Services
   1. Online Tutor
   2. Spoken English Trainer
   3. Computer Trainer
   4. Coaching Institute
 
-- बिजनेस सर्विसेज
+- Business Services
   1. Accountant
   2. Tax Consultant
   3. CA
   4. Insurance Agent
   5. Financial Advisor`,
-    mr: `🌟 JustTap Services Overview
+    mr: `**🌟 JustTap Services Overview**
 
-JustTap विविध श्रेणींमध्ये अनेक सेवा प्रदान करते. आम्ही देत असलेल्या सेवांचा आढावा:
+JustTap विविध categories मध्ये अनेक services प्रदान करते. येथे उपलब्ध services चा संक्षिप्त overview आहे:
 
-- होम सर्व्हिसेस
+- Home Services
   1. Plumber
   2. Electrician
   3. Carpenter
   4. AC Technician
   5. Painter
 
-- ऑटो सर्व्हिसेस
+- Auto Services
   1. Bike Mechanic
   2. Car Mechanic
   3. Car Wash
 
-- डोमेस्टिक सर्व्हिसेस
+- Domestic Services
   1. Maid Service
   2. Security Guard
   3. Gardener
   4. Cleaner
 
-- टेक्निकल सर्व्हिसेस
+- Technical Services
   1. Software Developer
   2. Web Designer
   3. Mobile App Developer
   4. Computer Repair Technician
   5. Digital Marketing Expert
 
-- एज्युकेशन सर्व्हिसेस
+- Education Services
   1. Online Tutor
   2. Spoken English Trainer
   3. Computer Trainer
   4. Coaching Institute
 
-- बिझनेस सर्व्हिसेस
+- Business Services
   1. Accountant
   2. Tax Consultant
   3. CA
@@ -215,12 +215,12 @@ Important:
 - Do not say that a service is unavailable unless the knowledge context explicitly states that it is unavailable.
 
 - Answer entirely in the requested response language.
-- For Hindi responses, write the complete answer in Hindi script.
-- For Marathi responses, write the complete answer in Marathi script.
-- For English responses, write the complete answer in English.
-- Do not leave unnecessary English words inside Hindi or Marathi responses.
-- Proper nouns that have no suitable translation may remain unchanged.
-- The app name "JustTap" must remain unchanged.
+- For Hindi responses, write explanatory sentences in Hindi script.
+- For Marathi responses, write explanatory sentences in Marathi script.
+- For English responses, write explanatory sentences in English.
+- Keep "JustTap" unchanged.
+- Keep every service name and category name exactly as provided in the knowledge context.
+- Do not translate, transliterate, rename, shorten, merge, or otherwise modify service names or category names.
 
 - Use the same structured response format for every answer.
 
@@ -234,10 +234,12 @@ Important:
 - Do not write long blocks of text when the information can be presented as points.
 
 - For a specific service:
-  - Create a short heading using the service name.
+  - Create a short heading using the exact service name.
+  - Answer only the user's current request about that service.
   - Provide only information relevant to that service.
   - Present the information point-by-point.
-  - Do not append unrelated services or the complete services overview.
+  - Do not mention, list, recommend, or append any other service or category unless the user explicitly asks for them.
+  - Do not append the complete services overview.
 
 - For a specific category:
   - Create a heading using the category name.
@@ -245,11 +247,12 @@ Important:
   - Present services point-by-point or as a numbered list when appropriate.
 
 - For a booking request:
-  - Create a booking-related heading.
+  - Create a short booking-related heading using the exact requested service name.
+  - Answer only the user's booking request for that service.
   - Provide only the booking information supported by the knowledge context.
   - If the knowledge context provides ordered booking steps, use a numbered list.
   - Do not add unsupported booking steps.
-  - Do not append unrelated services.
+  - Do not mention, list, recommend, or append any other service or category unless the user explicitly asks for them.
 
 - For a complete services overview:
   - Use the heading:
