@@ -106,6 +106,14 @@ Important:
 - Use numbered lists for services under each category.
 - Include the complete relevant list from the knowledge context.
 - Do not add booking, pricing, cancellation, or unrelated information unless explicitly requested.
+- Analyze ONLY the customer's CURRENT question.
+- Do not inherit language, intent, category, or service from previous conversation messages unless the current question explicitly refers to them.
+- Determine the language from the current question itself.
+- A Hindi conversation does not mean the current question is Hindi.
+- If the current question is English, detected language must be English.
+- If the current question is Hindi, detected language must be Hindi.
+- If the current question is Marathi, detected language must be Marathi.
+- Determine intent from what the customer is asking in the CURRENT question.
 - For Hindi:
   - Write the explanatory content in Hindi.
   - Keep service names and category names exactly as provided in the knowledge context.
