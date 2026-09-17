@@ -224,8 +224,7 @@ Important:
 
 - Use the same structured response format for every answer.
 
-- Start every response with one short, relevant heading.
-- The heading must use Markdown bold syntax.
+
 - Do not use #, ##, ###, or other Markdown heading syntax.
 - After the heading, present the information point-by-point.
 - Use "-" for explanatory points or lists.
@@ -234,7 +233,7 @@ Important:
 - Do not write long blocks of text when the information can be presented as points.
 
 - For a specific service:
-  - Create a short heading using the exact service name.
+
   - Answer only the user's current request about that service.
   - Provide only information relevant to that service.
   - Present the information point-by-point.
