@@ -23,9 +23,129 @@ export type GroundedAnswerInput = {
 // please have someone review the actual wording before this goes live.
 const predefinedAnswers: Record<string, Record<string, string>> = {
   svc_overview_001: {
-    en: "JustTap provides Home Services (Plumber, Electrician, Carpenter, AC Technician, Painter), Auto Services (Bike Mechanic, Car Mechanic, Car Wash), Domestic Services (Maid Service, Security Guard, Gardener, Cleaner), Technical Services (Software Developer, Web Designer, Mobile App Developer, Computer Repair Technician, Digital Marketing Expert), Education Services (Online Tutor, Spoken English Trainer, Computer Trainer, Coaching Institute), and Business Services (Accountant, Tax Consultant, CA, Insurance Agent, Financial Advisor).",
-    hi: "JustTap होम सर्विसेज (Plumber, Electrician, Carpenter, AC Technician, Painter), ऑटो सर्विसेज (Bike Mechanic, Car Mechanic, Car Wash), डोमेस्टिक सर्विसेज (Maid Service, Security Guard, Gardener, Cleaner), टेक्निकल सर्विसेज (Software Developer, Web Designer, Mobile App Developer, Computer Repair Technician, Digital Marketing Expert), एजुकेशन सर्विसेज (Online Tutor, Spoken English Trainer, Computer Trainer, Coaching Institute), और बिज़नेस सर्विसेज (Accountant, Tax Consultant, CA, Insurance Agent, Financial Advisor) प्रदान करता है।",
-    mr: "JustTap होम सर्व्हिसेस (Plumber, Electrician, Carpenter, AC Technician, Painter), ऑटो सर्व्हिसेस (Bike Mechanic, Car Mechanic, Car Wash), डोमेस्टिक सर्व्हिसेस (Maid Service, Security Guard, Gardener, Cleaner), टेक्निकल सर्व्हिसेस (Software Developer, Web Designer, Mobile App Developer, Computer Repair Technician, Digital Marketing Expert), एज्युकेशन सर्व्हिसेस (Online Tutor, Spoken English Trainer, Computer Trainer, Coaching Institute), आणि बिझनेस सर्व्हिसेस (Accountant, Tax Consultant, CA, Insurance Agent, Financial Advisor) पुरवते."
+    en: `🌟 JustTap Services Overview
+
+JustTap provides a variety of services across different categories. Here's an overview of the services we offer:
+
+- Home Services
+  1. Plumber
+  2. Electrician
+  3. Carpenter
+  4. AC Technician
+  5. Painter
+
+- Auto Services
+  1. Bike Mechanic
+  2. Car Mechanic
+  3. Car Wash
+
+- Domestic Services
+  1. Maid Service
+  2. Security Guard
+  3. Gardener
+  4. Cleaner
+
+- Technical Services
+  1. Software Developer
+  2. Web Designer
+  3. Mobile App Developer
+  4. Computer Repair Technician
+  5. Digital Marketing Expert
+
+- Education Services
+  1. Online Tutor
+  2. Spoken English Trainer
+  3. Computer Trainer
+  4. Coaching Institute
+
+- Business Services
+  1. Accountant
+  2. Tax Consultant
+  3. CA
+  4. Insurance Agent
+  5. Financial Advisor`,
+    hi: `🌟 JustTap Services Overview
+
+JustTap अलग-अलग श्रेणियों में कई सेवाएँ प्रदान करता है। यहाँ हमारी सेवाओं का अवलोकन है:
+
+- होम सर्विसेज
+  1. Plumber
+  2. Electrician
+  3. Carpenter
+  4. AC Technician
+  5. Painter
+
+- ऑटो सर्विसेज
+  1. Bike Mechanic
+  2. Car Mechanic
+  3. Car Wash
+
+- डोमेस्टिक सर्विसेज
+  1. Maid Service
+  2. Security Guard
+  3. Gardener
+  4. Cleaner
+
+- टेक्निकल सर्विसेज
+  1. Software Developer
+  2. Web Designer
+  3. Mobile App Developer
+  4. Computer Repair Technician
+  5. Digital Marketing Expert
+
+- एजुकेशन सर्विसेज
+  1. Online Tutor
+  2. Spoken English Trainer
+  3. Computer Trainer
+  4. Coaching Institute
+
+- बिजनेस सर्विसेज
+  1. Accountant
+  2. Tax Consultant
+  3. CA
+  4. Insurance Agent
+  5. Financial Advisor`,
+    mr: `🌟 JustTap Services Overview
+
+JustTap विविध श्रेणींमध्ये अनेक सेवा प्रदान करते. आम्ही देत असलेल्या सेवांचा आढावा:
+
+- होम सर्व्हिसेस
+  1. Plumber
+  2. Electrician
+  3. Carpenter
+  4. AC Technician
+  5. Painter
+
+- ऑटो सर्व्हिसेस
+  1. Bike Mechanic
+  2. Car Mechanic
+  3. Car Wash
+
+- डोमेस्टिक सर्व्हिसेस
+  1. Maid Service
+  2. Security Guard
+  3. Gardener
+  4. Cleaner
+
+- टेक्निकल सर्व्हिसेस
+  1. Software Developer
+  2. Web Designer
+  3. Mobile App Developer
+  4. Computer Repair Technician
+  5. Digital Marketing Expert
+
+- एज्युकेशन सर्व्हिसेस
+  1. Online Tutor
+  2. Spoken English Trainer
+  3. Computer Trainer
+  4. Coaching Institute
+
+- बिझनेस सर्व्हिसेस
+  1. Accountant
+  2. Tax Consultant
+  3. CA
+  4. Insurance Agent
+  5. Financial Advisor`
   }
 };
 
@@ -51,7 +171,8 @@ export async function runAnswerChain(input: GroundedAnswerInput): Promise<string
     predefinedAnswers[input.hits[0].id]
   ) {
     const versions = predefinedAnswers[input.hits[0].id];
-    return versions[input.language] ?? versions.en;
+    const responseLanguage = input.language.toLowerCase().split(/[-_]/)[0];
+    return versions[responseLanguage] ?? versions.en;
   }
 
   if (strongMatch) {
@@ -102,51 +223,43 @@ Important:
 - The app name "JustTap" must remain unchanged.
 
 - Keep the answer concise but complete.
-- Use a clear and readable structure.
-- Do not use Markdown bold (**text**).
-- Do not use Markdown italic (*text*).
-- Do not use Markdown heading syntax (#, ##, ###).
+- Use a clear, readable plain-text structure.
+- Do not use Markdown bold syntax such as **text**.
+- Do not use Markdown italic syntax such as *text*.
+- Do not use Markdown heading syntax such as #, ##, or ###.
 - Do not use separator lines such as ====, ----, or ****.
+- Do not use + as a list marker.
 
-- For a complete services overview:
-  - Start with:
-    🌟 JustTap Services Overview
-  - Use a short introductory sentence.
-  - Use "-" for category names.
-  - Use numbered lists for services.
-  - Keep one blank line between categories.
-  - Include all relevant categories and services from the knowledge context.
-  - Do not add booking, pricing, cancellation, or other information unless the user explicitly asks for it.
-
-- For a specific service:
-  - Answer only about that service.
-  - Do not append the complete services overview.
-
-- For a booking request:
-  - Answer only the booking-related information supported by the knowledge context.
-  - Do not append the services overview.
-
-- Preserve the exact service names and categories from the knowledge context.
-- Do not invent, rename, merge, or remove services.
-- Use "-" for category bullets.
-- Use numbered lists for services inside a category.
-- Keep one blank line between categories.
-
-- If the user asks for a specific category, provide only that category and its supported services.
-- If the user asks for a specific service, answer only about that service.
-- If the user asks a booking question, answer only the booking-related information supported by the knowledge context.
-- Do not append the complete JustTap Services Overview to a specific-service or booking response.
-
-- If the user asks for a services overview, provide all relevant categories and their complete service lists from the knowledge context.
-- Do not use "..." when the knowledge context contains the complete list.
-
-- For the JustTap Services Overview, write:
+- For a complete services overview, use this structure:
   🌟 JustTap Services Overview
 
-- The 🌟 emoji must appear before the heading.
-- Do not add ** around the heading.
-- Do not add any separator below the heading.
-- Preserve any other emoji that is explicitly present in the knowledge context.
+  Short introductory sentence.
+
+  - Category Name
+    1. Service
+    2. Service
+    3. Service
+
+- Keep one blank line between categories.
+- Use the hyphen character (-) for category bullets.
+- Use numbered lists for services under each category.
+- Include the complete relevant service list from the knowledge context.
+- Do not append booking, pricing, cancellation, or unrelated information to an overview unless the user explicitly asks for it.
+
+- For a specific service, answer only about that service.
+- For a booking request, answer only the booking-related information supported by the knowledge context.
+- Do not append the complete services overview to a specific-service or booking response.
+
+- If the user asks for a specific category, provide only that category and its supported services.
+- Preserve the exact service names and categories from the knowledge context.
+- Do not invent, rename, merge, reorder, or remove services.
+- Do not use "..." when the knowledge context contains the complete list.
+
+- For the JustTap Services Overview, write the heading exactly as:
+  🌟 JustTap Services Overview
+- Do not put ** around the heading.
+- Do not put a separator under the heading.
+- Preserve emojis explicitly supported by the knowledge context.
 
 - If the user asks about a specific category, provide only that category and its supported services.
 - If the user asks about a specific service, answer only with information supported by the knowledge context.
