@@ -1,3 +1,4 @@
+
 import { generate } from '../services/huggingface.js';
 import { SearchHit } from '../models/types.js';
 
@@ -12,260 +13,161 @@ export type GroundedAnswerInput = {
   minRelevanceScore: number;
 };
 
-/**
- * Clean Markdown artifacts from the LLM response.
- * This changes formatting only, not the factual content.
- */
-function stripMarkdownArtifacts(text: string): string {
-  return text
-    // **bold** -> bold
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-
-    // __bold__ -> bold
-    .replace(/__(.+?)__/g, '$1')
-
-    // Markdown headings -> plain text
-    .replace(/^#{1,6}\s+/gm, '')
-
-    // Markdown bullet styles -> normal "-"
-    .replace(/^(\s*)[*+]\s+/gm, '$1- ')
-
-    // Single emphasis -> plain text
-    .replace(/\*([^*\n]+)\*/g, '$1')
-
-    // Remove horizontal separators
-    .replace(/^\s*(?:={3,}|-{3,}|\*{3,}|_{3,})\s*$/gm, '')
-
-    // Remove trailing whitespace
-    .replace(/[ \t]+$/gm, '')
-
-    // Collapse excessive blank lines
-    .replace(/\n{3,}/g, '\n\n')
-
-    .trim();
-}
-
-export async function runAnswerChain(
-  input: GroundedAnswerInput
-): Promise<string> {
+export async function runAnswerChain(input: GroundedAnswerInput): Promise<string> {
   const strongMatch =
     input.hits.length > 0 &&
     input.topScore >= input.minRelevanceScore;
 
-  /*
-   * No sufficiently strong knowledge match.
-   * Do not allow the LLM to invent an answer.
-   */
-  if (!strongMatch) {
-    const safeFallbacks: Record<string, string> = {
-      en: "I don't have exact information about that JustTap topic yet. The JustTap support team can help you with the exact details.",
-      hi: "मेरे पास अभी इस JustTap विषय की सटीक जानकारी नहीं है। JustTap की सहायता टीम आपको सही जानकारी देने में मदद कर सकती है।",
-      mr: "माझ्याकडे सध्या या JustTap विषयाची अचूक माहिती नाही. JustTap ची सहाय्य टीम तुम्हाला योग्य माहिती देण्यात मदत करू शकते."
-    };
+  // Return predefined KB answers directly.
+  // This preserves their exact structure and avoids LLM paraphrasing.
+  const predefinedAnswerIds = new Set([
+    'svc_overview_001',
+  ]);
 
-    return safeFallbacks[input.language] ?? safeFallbacks.en;
+  if (
+    strongMatch &&
+    input.hits[0]?.id &&
+    predefinedAnswerIds.has(input.hits[0].id)
+  ) {
+    return input.hits[0].answer;
   }
 
-  const context = input.hits
-    .map(
-      (hit, index) =>
-        `[${index + 1}]
-ID: ${hit.id}
-Intent: ${hit.intent}
-Category: ${hit.category}
-Sub-service: ${hit.sub_service ?? ''}
-Question: ${hit.question}
-Answer:
-${hit.answer}`
-    )
-    .join('\n\n');
+  if (strongMatch) {
+    const context = input.hits
+      .map(
+        (hit, index) =>
+          `[${index + 1}] intent=${hit.intent}; category=${hit.category}; service=${hit.sub_service ?? ''}; Q=${hit.question}; A=${hit.answer}`
+      )
+      .join('\n');
 
-  /*
-   * Detect whether the user actually wants the COMPLETE
-   * JustTap services overview.
-   *
-   * Specific requests such as:
-   * "how can I book plumber"
-   * "i want to book mechanic"
-   * "tell me about painter"
-   *
-   * must NOT trigger the overview.
-   */
-  const requestText =
-    `${input.message} ${input.normalizedMessage}`.toLowerCase();
+  const prompt = `
+Detected language: ${input.language}
 
-  const completeServicesRequest =
-    input.category.toLowerCase() === 'services' &&
-    /\b(all|complete|overview|what services|services offered|services provided|provide services|offer services)\b/i.test(
-      requestText
-    ) &&
-    !/\b(book|booking|price|pricing|cost|cancel|cancellation|reschedule|plumber|electrician|carpenter|painter|mechanic|maid|cleaner|gardener|security|developer|designer|tutor|accountant|tax|insurance|financial)\b/i.test(
-      requestText
-    );
+User intent: ${input.intent}
 
-  /*
-   * Base instructions apply to EVERY response.
-   */
-  const basePrompt = `
-You are the JustTap knowledge assistant.
-
-SOURCE OF TRUTH:
-
-Use ONLY the supplied knowledge context for factual information.
-
-User language:
-${input.language}
-
-User intent:
-${input.intent}
-
-User category:
-${input.category}
+User category: ${input.category}
 
 Original user question:
+
 ${input.message}
 
-Normalized query:
+Normalized English query:
+
 ${input.normalizedMessage}
 
 Knowledge context:
+
 ${context}
 
-IMPORTANT RESPONSE RULES:
+Answer the user using ONLY the supplied knowledge context.
 
-- Answer ONLY the user's current question.
-- Use ONLY information supported by the supplied knowledge context.
+Important:
+
 - Do not invent information.
-- Do not invent services.
-- Do not invent categories.
-- Do not invent booking steps.
-- Do not invent application features.
-- Do not invent prices.
-- Do not invent contact details.
-- Do not invent instructions.
-- Do not introduce unrelated examples.
-- Do not introduce unrelated services.
-- Ignore retrieved information that is unrelated to the user's current question.
-- Do not automatically provide a complete services overview.
-- Only provide all services when the user explicitly asks for all/complete services.
-- If the user asks about one specific service, focus only on that service.
-- Answer entirely in the requested language.
-- Keep the response concise and directly relevant.
+- Use only information supported by the supplied knowledge context.
+- Do not introduce unrelated services, categories, examples, details, or assumptions.
+- Do not add information from general knowledge.
+- Do not omit relevant information from the supplied knowledge context.
+- Do not change the meaning of the supplied knowledge context.
+- Do not say that a service is unavailable unless the knowledge context explicitly states that it is unavailable.
 
-PLAIN TEXT FORMAT:
+- Answer entirely in the requested response language.
+- For Hindi responses, write the complete answer in Hindi script.
+- For Marathi responses, write the complete answer in Marathi script.
+- For English responses, write the complete answer in English.
+- Do not leave unnecessary English words inside Hindi or Marathi responses.
+- Proper nouns that have no suitable translation may remain unchanged.
+- The app name "JustTap" must remain unchanged.
 
-- Return plain text only.
-- Do NOT use Markdown.
-- Do NOT use **.
-- Do NOT use __.
-- Do NOT use # headings.
-- Do NOT use ===== separators.
-- Do NOT use horizontal separator lines.
-- Do NOT use * as bullets.
-- Do NOT use + as bullets.
-- Use "-" for bullets when a bullet list is necessary.
-- Use numbered steps only when the knowledge context actually contains supported steps.
-- Do not add decorative formatting.
-- Do not add unsupported conclusions.
+- Keep the answer concise but complete.
+- Generate the response naturally from the supplied knowledge context.
+- Use a clear and readable structure.
+- Do not use Markdown bold syntax such as **text**.
+- Do not use Markdown heading syntax such as #, ##, ###.
+- Do not use separator lines such as ====, ----, or ****.
 
-SPECIFIC SERVICE REQUEST:
+- When presenting multiple services under categories, use this exact structure:
 
-If the user asks about a specific service, answer about that service only.
-
-If the user asks to book a specific service:
-
-- Answer only about that requested service.
-- Use booking information only if it exists in the knowledge context.
-- Do not list all services.
-- Do not provide a services overview.
-- Do not invent application booking steps.
-- Do not mention unrelated categories or services.
-
-For example:
-
-User:
-how can I book plumber
-
-The answer must focus ONLY on the plumber booking request.
-
-If the knowledge context does not contain the booking procedure, say that the exact booking procedure is not available in the supplied JustTap information rather than inventing steps.
-
-`;
-
-  /*
-   * Overview instructions are added ONLY when the current
-   * user request is actually a complete services request.
-   */
-  const overviewPrompt = completeServicesRequest
-    ? `
-
-COMPLETE SERVICES OVERVIEW:
-
-The user explicitly requested the complete JustTap services overview.
-
-Use this exact response structure:
-
-🌟 JustTap Services Overview
-
-Short introductory paragraph.
-
-- Category Name
-  1. First service
-  2. Second service
-  3. Third service
-
-- Next Category Name
-  1. First service
-  2. Second service
-  3. Third service
-
-RULES FOR THE OVERVIEW:
-
-- The first line MUST be exactly:
   🌟 JustTap Services Overview
 
-- Do NOT put ** around the title.
-- Do NOT put # before the title.
-- Do NOT put ===== after the title.
-- Do NOT add a separator.
-- Every category must start with "- Category Name".
-- Every service must be on its own numbered line.
-- Numbering must restart at 1 for every category.
-- Include all categories supported by the knowledge context.
-- Include all services supported by the knowledge context.
-- Do not invent categories.
-- Do not invent services.
-- Do not use "...".
-- Do not add booking instructions unless explicitly supported by the knowledge context.
-- Do not add unrelated information.
+  JustTap provides a variety of services across different categories. Here's an overview of the services we offer:
 
-The structure controls FORMAT ONLY.
-The knowledge context controls the actual factual content.
+  - Home Services
+    1. Plumber
+    2. Electrician
+    3. Carpenter
+    4. AC Technician
+    5. Painter
 
-`
-    : `
+  - Auto Services
+    1. Bike Mechanic
+    2. Car Mechanic
+    3. Car Wash
 
-NON-OVERVIEW REQUEST:
+- Preserve the actual categories and services from the knowledge context.
+- Do not invent, rename, merge, or remove services.
+- Use "-" for category bullets.
+- Use numbered lists for services inside a category.
+- Keep one blank line between categories.
 
-The user did NOT request the complete services overview.
+- If the user asks for a specific category, provide only that category and its supported services.
+- If the user asks for a specific service, answer only about that service.
+- If the user asks a booking question, answer only the booking-related information supported by the knowledge context.
+- Do not append the complete JustTap Services Overview to a specific-service or booking response.
 
-Do NOT use the services overview format.
+- If the user asks for a services overview, provide all relevant categories and their complete service lists from the knowledge context.
+- Do not use "..." when the knowledge context contains the complete list.
 
-Do NOT list all JustTap services.
+- For the JustTap Services Overview, write:
+  🌟 JustTap Services Overview
 
-Do NOT reproduce unrelated categories.
+- The 🌟 emoji must appear before the heading.
+- Do not add ** around the heading.
+- Do not add any separator below the heading.
+- Preserve any other emoji that is explicitly present in the knowledge context.
 
-Do NOT reproduce unrelated services.
+- If the user asks about a specific category, provide only that category and its supported services.
+- If the user asks about a specific service, answer only with information supported by the knowledge context.
 
-Answer ONLY the user's current question.
+- If the user asks how to do something, provide the supported instructions as numbered steps.
+- If the user asks about a problem, use these sections only when supported by the knowledge context:
+  **Problem**
+  **Relevant**
 
-`;
-
-  const prompt = `${basePrompt}${overviewPrompt}
-Return ONLY the final answer.
 `.trim();
 
-  const rawAnswer = await generate(prompt, input.language);
+    return generate(prompt, input.language);
+  }
 
-  return stripMarkdownArtifacts(rawAnswer);
+  // No sufficiently specific KB record. Use a deterministic safe response
+  // instead of an LLM-generated fallback. This prevents unsupported topics
+  // (especially login/account access) from producing variable or invented
+  // steps, and makes the response safe to cache across devices.
+  //
+  // GROUNDING NOTE: this list used to only cover 5 known topics (find/
+  // book/cancel/reschedule/providers) and left every other topic --
+  // including login/account access, which the KB has no records for at
+  // all -- with no scripted guardrail. That gap is exactly what produced
+  // two different, partly invented answers (including a fabricated
+  // "two-factor authentication" step) to the same "how to login" question.
+  // The rule below is now restrictive by default: for anything not on
+  // this specific list, the model must say it doesn't have exact
+  // information rather than describe steps it has no source for.
+  const safeFallbacks: Record<string, string> = {
+    en: "I don't have exact information about that JustTap topic yet. The JustTap support team can help you with the exact details.",
+    hi: "मेरे पास अभी इस JustTap विषय की सटीक जानकारी नहीं है। JustTap की सहायता टीम आपको सही जानकारी देने में मदद कर सकती है।",
+    mr: "माझ्याकडे सध्या या JustTap विषयाची अचूक माहिती नाही. JustTap ची सहाय्य टीम तुम्हाला योग्य माहिती देण्यात मदत करू शकते."
+  };
+
+  // These are the only generic instructions we can safely provide without
+  // a matching KB record. They contain no invented product details.
+  if (input.intent === 'knowledge' && /login|account|password|credential/i.test(input.normalizedMessage)) {
+    return safeFallbacks[input.language] ?? safeFallbacks.en;
+  }
+
+  if (input.intent === 'unknown_query') {
+    return safeFallbacks[input.language] ?? safeFallbacks.en;
+  }
+
+  return safeFallbacks[input.language] ?? safeFallbacks.en;
 }
