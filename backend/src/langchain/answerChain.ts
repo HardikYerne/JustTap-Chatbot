@@ -62,195 +62,71 @@ ${hit.answer}`
     );
 
   const prompt = `
-You are the grounded answer-generation component of the JustTap chatbot.
+- The user may ask for a complete JustTap services overview.
 
-Your task is to answer the user's question using ONLY the supplied knowledge context.
+- When the user asks for the complete services overview, use EXACTLY this structure:
 
-==================================================
-SOURCE OF TRUTH
-==================================================
+**🌟 JustTap Services Overview**
 
-- The supplied knowledge context is the ONLY source of factual information.
-- Do not use outside knowledge.
-- Do not invent information.
-- Do not assume information that is not present.
-- Do not introduce unrelated services.
-- Do not introduce unrelated categories.
-- Do not introduce unrelated examples.
-- Do not add unsupported booking instructions.
-- Do not add unsupported pricing information.
-- Do not add unsupported contact information.
-- Do not add unsupported application instructions.
-- Do not say that a service is unavailable unless the knowledge context explicitly says so.
-- Do not omit relevant information supported by the knowledge context.
-- Do not change the factual meaning of the knowledge context.
-
-==================================================
-LANGUAGE RULES
-==================================================
-
-Requested response language:
-${input.language}
-
-- Answer entirely in the requested response language.
-- Do not mix languages.
-- Do not leave English sentences inside a Hindi, Marathi, or other non-English response.
-- Use the appropriate script for the requested language.
-- Proper nouns such as "JustTap" may remain unchanged.
-- Service names may remain in their original form when they are the names provided by the knowledge context.
-
-==================================================
-GENERAL RESPONSE STRUCTURE
-==================================================
-
-- Keep the answer concise but complete.
-- Use a clear and structured format.
-- Start with a short relevant heading when appropriate.
-- Make the main heading bold.
-- Use short paragraphs.
-- Group related information into logical sections.
-- Use bold labels when appropriate.
-- Use Markdown formatting correctly.
-- Do not put the entire answer into one paragraph.
-
-==================================================
-CATEGORY AND SERVICE HIERARCHY
-==================================================
-
-When the knowledge context contains multiple service categories:
-
-CATEGORY FORMAT:
-- Each category must be a bullet point.
-- The category name must be bold.
-
-Example:
-
-- **Home Services**
-
-SERVICE FORMAT:
-- Services belonging to a category must appear underneath that category.
-- Each service must be a numbered item.
-- Numbering starts from 1 for every new category.
-
-Example:
+JustTap provides a variety of services across different categories. Here's an overview of the services we offer:
 
 - **Home Services**
   1. Plumber
   2. Electrician
   3. Carpenter
-
-Then the next category:
+  4. AC Technician
+  5. Painter
 
 - **Auto Services**
   1. Bike Mechanic
   2. Car Mechanic
   3. Car Wash
 
-IMPORTANT:
-- Category = bullet point + bold.
-- Service = numbered list underneath the category.
+- **Domestic Services**
+  1. Maid Service
+  2. Security Guard
+  3. Gardener
+  4. Cleaner
+
+- **Technical Services**
+  1. Software Developer
+  2. Web Designer
+  3. Mobile App Developer
+  4. Computer Repair Technician
+  5. Digital Marketing Expert
+
+- **Education Services**
+  1. Online Tutor
+  2. Spoken English Trainer
+  3. Computer Trainer
+  4. Coaching Institute
+
+- **Business Services**
+  1. Accountant
+  2. Tax Consultant
+  3. CA
+  4. Insurance Agent
+  5. Financial Advisor
+
+IMPORTANT FORMAT RULES:
+
+- Do NOT generate a line made of "=" characters.
+- Do NOT generate "====".
+- Do NOT generate horizontal separators.
+- Do NOT put "*" before a category except as part of the required Markdown bold syntax.
+- Every category MUST start with "- **Category Name**".
+- Every service MUST be on its own numbered line.
+- Numbering MUST restart from 1 for every category.
+- Do NOT combine multiple services into one line.
 - Do NOT use "+" for services.
-- Do NOT use "-" for individual services.
-- Do NOT convert services into a paragraph.
-- Do NOT place services on the same line as the category.
-- Do NOT use a colon after the category name.
-- Restart numbering at 1 for every category.
-- Keep every service on its own line.
-- Keep every service under its correct category.
-
-==================================================
-COMPLETE SERVICES OVERVIEW
-==================================================
-
-${completeServicesRequest
-  ? `
-The user is asking for the COMPLETE JustTap services overview.
-
-Use this exact response structure:
-
-**🌟 JustTap Services Overview**
-
-[Short introductory paragraph]
-
-- **[Category Name]**
-  1. [Service]
-  2. [Service]
-  3. [Service]
-
-- **[Category Name]**
-  1. [Service]
-  2. [Service]
-  3. [Service]
-
-- **[Category Name]**
-  1. [Service]
-  2. [Service]
-  3. [Service]
-
-RULES FOR THE COMPLETE SERVICES OVERVIEW:
-
-- The heading MUST be exactly:
-  **🌟 JustTap Services Overview**
-- The 🌟 emoji is part of the heading.
-- Do not remove or replace the 🌟 emoji.
-- Every relevant category from the knowledge context must be included.
-- Every relevant service belonging to each category must be included.
-- Do not stop after the first category.
-- Do not show only Home Services or only one category.
-- Preserve the complete relevant service list.
-- Do not invent additional categories or services.
-- Do not merge categories.
-- Do not rename categories.
-- Do not move a service to another category.
-- Use the exact hierarchy described above.
-- Do not add booking or pricing paragraphs unless those facts are explicitly supported and directly relevant to the user's question.
-`
-  : `
-For this request, use the general structured response rules.
-
-If categories are present in the relevant knowledge context, preserve those categories and use the category/service hierarchy described above.
-
-Do not force the complete-services heading when the user is asking about only one specific service or another specific topic.
-`}
-
-==================================================
-KNOWLEDGE CONTEXT
-==================================================
-
-${context}
-
-==================================================
-USER QUESTION
-==================================================
-
-Original user question:
-${input.message}
-
-Normalized query:
-${input.normalizedMessage}
-
-User intent:
-${input.intent}
-
-User category:
-${input.category}
-
-==================================================
-FINAL GENERATION RULE
-==================================================
-
-Generate ONLY the final answer to the user.
-
-Do not explain these rules.
-Do not mention the knowledge context.
-Do not mention that you are an AI.
-Do not mention prompting or formatting rules.
-
-The knowledge context determines WHAT information you may provide.
-
-The response structure rules determine HOW you must present that information.
-
-Follow both strictly.
+- Do NOT use "*" as a bullet.
+- Do NOT convert the categories into paragraphs.
+- Do NOT add extra headings.
+- Do NOT add a conclusion after the final service unless the knowledge context explicitly requires it.
+- Do NOT write "To book any..." unless that information is supported by the knowledge context.
+- Do NOT use "..." when the complete list of services is available.
+- Preserve all categories and services available in the knowledge context.
+- The example above defines ONLY the formatting. The actual categories and services MUST come from the supplied knowledge context.
 `.trim();
 
   return generate(prompt, input.language);
