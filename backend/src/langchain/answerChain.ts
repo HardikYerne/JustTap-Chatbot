@@ -13,27 +13,35 @@ export type GroundedAnswerInput = {
 };
 
 /**
- * Strip any Markdown artifacts the model produced despite the plain-text
- * instructions in the prompt. This is a deterministic safety net -- the
- * prompt rules alone are not reliable enough on their own, so every
- * response is normalized here before it reaches the user, regardless of
- * intent, category, or whether it used the services-overview template.
+ * Clean Markdown artifacts from the LLM response.
+ * This changes formatting only, not the factual content.
  */
 function stripMarkdownArtifacts(text: string): string {
   return text
-    // **bold** / __bold__ -> bold
+    // **bold** -> bold
     .replace(/\*\*(.+?)\*\*/g, '$1')
+
+    // __bold__ -> bold
     .replace(/__(.+?)__/g, '$1')
-    // Markdown headings ("# Title", "## Title") -> plain line
+
+    // Markdown headings -> plain text
     .replace(/^#{1,6}\s+/gm, '')
-    // "* item" or "+ item" bullets -> "- item"
-    .replace(/^(\s*)[*+](\s+)/gm, '$1-$2')
-    // any remaining single-asterisk emphasis *word* -> word
+
+    // Markdown bullet styles -> normal "-"
+    .replace(/^(\s*)[*+]\s+/gm, '$1- ')
+
+    // Single emphasis -> plain text
     .replace(/\*([^*\n]+)\*/g, '$1')
-    // "====" / "----" separator lines -> removed
-    .replace(/^[=\-]{3,}\s*$/gm, '')
-    // collapse 3+ blank lines left behind by the removals above
+
+    // Remove horizontal separators
+    .replace(/^\s*(?:={3,}|-{3,}|\*{3,}|_{3,})\s*$/gm, '')
+
+    // Remove trailing whitespace
+    .replace(/[ \t]+$/gm, '')
+
+    // Collapse excessive blank lines
     .replace(/\n{3,}/g, '\n\n')
+
     .trim();
 }
 
@@ -44,8 +52,10 @@ export async function runAnswerChain(
     input.hits.length > 0 &&
     input.topScore >= input.minRelevanceScore;
 
-  // No sufficiently strong knowledge match.
-  // Do not allow the LLM to invent an answer.
+  /*
+   * No sufficiently strong knowledge match.
+   * Do not allow the LLM to invent an answer.
+   */
   if (!strongMatch) {
     const safeFallbacks: Record<string, string> = {
       en: "I don't have exact information about that JustTap topic yet. The JustTap support team can help you with the exact details.",
@@ -71,10 +81,15 @@ ${hit.answer}`
     .join('\n\n');
 
   /*
-   * Detect a request for the complete JustTap services overview.
+   * Detect whether the user actually wants the COMPLETE
+   * JustTap services overview.
    *
-   * This controls formatting only.
-   * The knowledge context remains the source of truth for factual content.
+   * Specific requests such as:
+   * "how can I book plumber"
+   * "i want to book mechanic"
+   * "tell me about painter"
+   *
+   * must NOT trigger the overview.
    */
   const requestText =
     `${input.message} ${input.normalizedMessage}`.toLowerCase();
@@ -84,14 +99,18 @@ ${hit.answer}`
     /\b(all|complete|overview|what services|services offered|services provided|provide services|offer services)\b/i.test(
       requestText
     ) &&
-    !/\b(price|pricing|cost|book|booking|cancel|cancellation|reschedule)\b/i.test(
+    !/\b(book|booking|price|pricing|cost|cancel|cancellation|reschedule|plumber|electrician|carpenter|painter|mechanic|maid|cleaner|gardener|security|developer|designer|tutor|accountant|tax|insurance|financial)\b/i.test(
       requestText
     );
 
-  const prompt = `
+  /*
+   * Base instructions apply to EVERY response.
+   */
+  const basePrompt = `
 You are the JustTap knowledge assistant.
 
 SOURCE OF TRUTH:
+
 Use ONLY the supplied knowledge context for factual information.
 
 User language:
@@ -112,96 +131,141 @@ ${input.normalizedMessage}
 Knowledge context:
 ${context}
 
-GENERAL RULES:
+IMPORTANT RESPONSE RULES:
 
-- Answer using ONLY information supported by the knowledge context.
-- Do not invent services, categories, features, prices, contact details, booking instructions, or other information.
+- Answer ONLY the user's current question.
+- Use ONLY information supported by the supplied knowledge context.
+- Do not invent information.
+- Do not invent services.
+- Do not invent categories.
+- Do not invent booking steps.
+- Do not invent application features.
+- Do not invent prices.
+- Do not invent contact details.
+- Do not invent instructions.
 - Do not introduce unrelated examples.
-- Do not say that a service is unavailable unless the knowledge context explicitly supports that statement.
-- Preserve the actual category names and service names from the knowledge context.
-- Preserve the complete relevant service list when the knowledge context provides it.
-- Do not use "..." when the complete information is available.
+- Do not introduce unrelated services.
+- Ignore retrieved information that is unrelated to the user's current question.
+- Do not automatically provide a complete services overview.
+- Only provide all services when the user explicitly asks for all/complete services.
+- If the user asks about one specific service, focus only on that service.
 - Answer entirely in the requested language.
-- Keep the answer clear and easy to read.
-- Use short paragraphs where appropriate.
-- Use bullets for groups of items.
-- Use numbered items for services within a category.
-- Numbering must restart at 1 for every category.
+- Keep the response concise and directly relevant.
 
-PLAIN-TEXT FORMAT RULES (apply to EVERY answer, not only the services overview):
+PLAIN TEXT FORMAT:
 
-- Do NOT use Markdown formatting anywhere in the response.
-- Do NOT use "**" or "__" for bold or emphasis, even around a short title like "Login Instructions" or "To Book Plumber".
-- Do NOT use Markdown headings.
-- Do NOT use "#" for headings.
-- Do NOT use "=" or "-" characters as separator lines.
-- Do NOT generate "====" or "----" lines.
-- Do NOT use "*" or "+" as a bullet character. Use "-" for bullets instead.
-- Do NOT put "*" before category names, step titles, or section labels.
-- Do NOT put a colon after category names.
-- Do NOT put Markdown syntax around category names, step titles, or the main title.
-- A short title line (e.g. "To Book Plumber", "Login Instructions") must be plain text, on its own line, with no "**", no "#", and no trailing colon.
+- Return plain text only.
+- Do NOT use Markdown.
+- Do NOT use **.
+- Do NOT use __.
+- Do NOT use # headings.
+- Do NOT use ===== separators.
+- Do NOT use horizontal separator lines.
+- Do NOT use * as bullets.
+- Do NOT use + as bullets.
+- Use "-" for bullets when a bullet list is necessary.
+- Use numbered steps only when the knowledge context actually contains supported steps.
+- Do not add decorative formatting.
+- Do not add unsupported conclusions.
 
-GENERAL (NON-OVERVIEW) ANSWER STRUCTURE:
+SPECIFIC SERVICE REQUEST:
 
-For step-by-step instructions (booking a service, logging in, troubleshooting, etc.), use exactly this shape:
+If the user asks about a specific service, answer about that service only.
 
-Plain-text title line, no symbols around it
+If the user asks to book a specific service:
 
-Short one- or two-line intro sentence if needed.
+- Answer only about that requested service.
+- Use booking information only if it exists in the knowledge context.
+- Do not list all services.
+- Do not provide a services overview.
+- Do not invent application booking steps.
+- Do not mention unrelated categories or services.
 
-1. First step
-2. Second step
-3. Third step
+For example:
 
-Only add a second plain-text section title (e.g. "If you are having trouble logging in") followed by its own numbered or "-" bulleted list if the knowledge context actually supports that extra section. Never wrap that section title in "**" either.
+User:
+how can I book plumber
 
-For a complete services overview, use this exact STRUCTURE. This is a FORMAT SKELETON only -- the words in angle brackets are placeholders, not real data:
+The answer must focus ONLY on the plumber booking request.
+
+If the knowledge context does not contain the booking procedure, say that the exact booking procedure is not available in the supplied JustTap information rather than inventing steps.
+
+`;
+
+  /*
+   * Overview instructions are added ONLY when the current
+   * user request is actually a complete services request.
+   */
+  const overviewPrompt = completeServicesRequest
+    ? `
+
+COMPLETE SERVICES OVERVIEW:
+
+The user explicitly requested the complete JustTap services overview.
+
+Use this exact response structure:
 
 🌟 JustTap Services Overview
 
 Short introductory paragraph.
 
-- <Category name, taken from the knowledge context>
-  1. <First service in this category>
-  2. <Second service in this category>
-  3. <continue numbering for every remaining service in this category>
+- Category Name
+  1. First service
+  2. Second service
+  3. Third service
 
-- <Next category name, taken from the knowledge context>
-  1. <First service in this category>
-  2. <continue numbering for every remaining service in this category>
+- Next Category Name
+  1. First service
+  2. Second service
+  3. Third service
 
-Repeat one "- Category" block for every category that actually appears in the knowledge context -- there may be more or fewer than shown above, and each category may have more or fewer services than shown above. Include ALL categories and ALL services the knowledge context provides, however many there are (this may be 6 services, 25 services, 40 services, or any other number). Never stop early, never drop a category or service that is present in the context, and never add one that is not.
+RULES FOR THE OVERVIEW:
 
-COMPLETE SERVICES REQUEST:
-${completeServicesRequest ? 'YES - The user is requesting the complete services overview. Include all relevant categories and all services supported by the knowledge context.' : 'NO - Answer according to the specific user request rather than automatically producing the complete services overview. Follow the GENERAL (NON-OVERVIEW) ANSWER STRUCTURE above instead.'}
+- The first line MUST be exactly:
+  🌟 JustTap Services Overview
 
-IMPORTANT:
-The structures above are FORMAT SKELETONS only, using placeholder text in angle brackets.
+- Do NOT put ** around the title.
+- Do NOT put # before the title.
+- Do NOT put ===== after the title.
+- Do NOT add a separator.
+- Every category must start with "- Category Name".
+- Every service must be on its own numbered line.
+- Numbering must restart at 1 for every category.
+- Include all categories supported by the knowledge context.
+- Include all services supported by the knowledge context.
+- Do not invent categories.
+- Do not invent services.
+- Do not use "...".
+- Do not add booking instructions unless explicitly supported by the knowledge context.
+- Do not add unrelated information.
 
-Do NOT copy the placeholder category or service names -- they are not real.
+The structure controls FORMAT ONLY.
+The knowledge context controls the actual factual content.
 
-Use the knowledge context as the sole source of truth for the actual categories, services, and steps, however many there are.
+`
+    : `
 
-For a complete services request:
-1. Start with exactly:
-   🌟 JustTap Services Overview
-2. Add a short introductory paragraph supported by the knowledge context.
-3. Put every category on its own bullet line:
-   - Category Name
-4. Put every service belonging to that category underneath it.
-5. Number services starting from 1 for each category.
-6. Preserve all relevant categories and services from the knowledge context.
-7. Do not add unsupported categories or services.
-8. Do not add any Markdown characters.
-9. Do not add a separator after the title.
-10. Do not add a conclusion unless it is explicitly supported by the knowledge context.
+NON-OVERVIEW REQUEST:
 
-For any other request, follow the GENERAL (NON-OVERVIEW) ANSWER STRUCTURE and the PLAIN-TEXT FORMAT RULES above exactly, including for the title line and any "If you are having trouble..." style sub-section.
+The user did NOT request the complete services overview.
 
+Do NOT use the services overview format.
+
+Do NOT list all JustTap services.
+
+Do NOT reproduce unrelated categories.
+
+Do NOT reproduce unrelated services.
+
+Answer ONLY the user's current question.
+
+`;
+
+  const prompt = `${basePrompt}${overviewPrompt}
 Return ONLY the final answer.
 `.trim();
 
   const rawAnswer = await generate(prompt, input.language);
+
   return stripMarkdownArtifacts(rawAnswer);
 }
