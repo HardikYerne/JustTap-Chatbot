@@ -319,15 +319,13 @@ type MostAskedItem = {
 };
 
 const MOST_ASKED_VERSION = 'v3';
-const TOP3_SEEN_SESSION_KEY = 'justtap_top3_seen_v3';
+const TOP3_SEEN_SESSION_KEY_PREFIX = 'justtap_top3_seen_v3_';
 
-// Top 3 visibility is independent for each language. Clicking a Top 3
-// question in English must not hide the Top 3 panel in Hindi, and vice versa.
-function top3SeenKey(lang: string): string {
-  return `${TOP3_SEEN_SESSION_KEY}_${lang}`;
+function top3SeenKey(lang: Lang): string {
+  return `${TOP3_SEEN_SESSION_KEY_PREFIX}${lang}`;
 }
 
-function hasSeenTop3ThisSession(lang: string): boolean {
+function hasSeenTop3ThisSession(lang: Lang): boolean {
   try {
     return sessionStorage.getItem(top3SeenKey(lang)) === '1';
   } catch {
@@ -335,7 +333,7 @@ function hasSeenTop3ThisSession(lang: string): boolean {
   }
 }
 
-function markTop3SeenThisSession(lang: string) {
+function markTop3SeenThisSession(lang: Lang) {
   try {
     sessionStorage.setItem(top3SeenKey(lang), '1');
   } catch {
@@ -577,8 +575,10 @@ function ChatbotPanel({
   // response can always be returned to the language thread that started it.
   const langRef = useRef<Lang>(lang);
   const sessionIdRef = useRef<string>(sessionId);
+  const messagesRefForSession = useRef<any[]>(messages);
   langRef.current = lang;
   sessionIdRef.current = sessionId;
+  messagesRefForSession.current = messages;
 
   // Thinking indicator: shown while waiting for a response.
   const [isThinking, setIsThinking] =
@@ -624,6 +624,17 @@ function ChatbotPanel({
       streamTimer.current = null;
     }
 
+    // Persist the thread currently on screen before changing language.
+    // This prevents a late React state/effect update from overwriting the
+    // previous language's stored conversation with the other language's list.
+    const previousSessionId = sessionIdRef.current;
+    if (previousSessionId) {
+      saveStoredMessages(
+        previousSessionId,
+        messagesRefForSession.current
+      );
+    }
+
     // Each language keeps its own separate session + message thread —
     // switching languages loads that language's own conversation.
     // The greeting itself lives only in the static welcome card above
@@ -643,10 +654,12 @@ function ChatbotPanel({
     setSessionId(nextSessionId);
     setMessages(stored);
 
+    // Top 3 visibility belongs to the currently selected language.
+    // English and Hindi therefore have independent first-use state.
+    setShowMostAskedQuestions(!hasSeenTop3ThisSession(lang));
+
     setInput('');
     setNotice('');
-    // Top 3 visibility belongs to the language being opened.
-    setShowMostAskedQuestions(!hasSeenTop3ThisSession(lang));
     setLead(false);
     setIsAtBottom(true);
     setIsThinking(false);
@@ -835,10 +848,7 @@ function ChatbotPanel({
     setIsAtBottom(true);
 
     const requestLang = lang;
-    // Resolve the originating session from the language at send time so a
-    // rapid language switch cannot send the request with the other language's
-    // session id.
-    const requestSessionId = getSessionForLang(requestLang);
+    const requestSessionId = sessionId;
     const userMessage = {
       id: nextId(),
       role: 'user',
