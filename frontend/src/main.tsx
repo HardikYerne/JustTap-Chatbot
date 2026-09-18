@@ -319,19 +319,25 @@ type MostAskedItem = {
 };
 
 const MOST_ASKED_VERSION = 'v3';
-const TOP3_SEEN_SESSION_KEY = 'justtap_top3_seen_v1';
+const TOP3_SEEN_SESSION_KEY = 'justtap_top3_seen_v3';
 
-function hasSeenTop3ThisSession(): boolean {
+// Top 3 visibility is independent for each language. Clicking a Top 3
+// question in English must not hide the Top 3 panel in Hindi, and vice versa.
+function top3SeenKey(lang: string): string {
+  return `${TOP3_SEEN_SESSION_KEY}_${lang}`;
+}
+
+function hasSeenTop3ThisSession(lang: string): boolean {
   try {
-    return sessionStorage.getItem(TOP3_SEEN_SESSION_KEY) === '1';
+    return sessionStorage.getItem(top3SeenKey(lang)) === '1';
   } catch {
     return false;
   }
 }
 
-function markTop3SeenThisSession() {
+function markTop3SeenThisSession(lang: string) {
   try {
-    sessionStorage.setItem(TOP3_SEEN_SESSION_KEY, '1');
+    sessionStorage.setItem(top3SeenKey(lang), '1');
   } catch {
     // Fall back to in-memory state if session storage is unavailable.
   }
@@ -570,7 +576,9 @@ function ChatbotPanel({
   // Tracks the currently selected language inside async requests so a
   // response can always be returned to the language thread that started it.
   const langRef = useRef<Lang>(lang);
+  const sessionIdRef = useRef<string>(sessionId);
   langRef.current = lang;
+  sessionIdRef.current = sessionId;
 
   // Thinking indicator: shown while waiting for a response.
   const [isThinking, setIsThinking] =
@@ -598,20 +606,9 @@ function ChatbotPanel({
   // Top 3 is shown when the chatbot panel is opened/reopened, not while
   // the user is actively chatting. It does not alter the Top 3 data.
   const [showMostAskedQuestions, setShowMostAskedQuestions] =
-    useState<Record<Lang, boolean>>(() => {
-      const seen = hasSeenTop3ThisSession();
-      return { en: !seen, hi: !seen };
-    });
+    useState<boolean>(() => !hasSeenTop3ThisSession(lang));
 
   const t = T[lang];
-
-  // sessionStorage survives a page refresh but is cleared when the browser
-  // tab/session is fully closed, which makes Top 3 reappear on a new app session.
-  useEffect(() => {
-    if (!hasSeenTop3ThisSession()) {
-      markTop3SeenThisSession();
-    }
-  }, []);
 
   useEffect(() => {
     localStorage.setItem(
@@ -648,6 +645,8 @@ function ChatbotPanel({
 
     setInput('');
     setNotice('');
+    // Top 3 visibility belongs to the language being opened.
+    setShowMostAskedQuestions(!hasSeenTop3ThisSession(lang));
     setLead(false);
     setIsAtBottom(true);
     setIsThinking(false);
@@ -711,8 +710,8 @@ function ChatbotPanel({
     setStreamingId(null);
     setFeedback({});
     setMostAskedQuestions(getMostAskedDisplay(lang));
-    markTop3SeenThisSession();
-    setShowMostAskedQuestions({ en: false, hi: false });
+    markTop3SeenThisSession(lang);
+    setShowMostAskedQuestions(false);
   };
 
   const saveChatToFile = () => {
@@ -745,7 +744,9 @@ function ChatbotPanel({
   // at a time, instead of dumping the whole reply in a single paragraph.
   const streamReply = (
     id: number,
-    fullText: string
+    fullText: string,
+    targetLang: Lang,
+    targetSessionId: string
   ) => {
     const words =
       fullText.split(/(\s+)/);
@@ -766,6 +767,16 @@ function ChatbotPanel({
           words
             .slice(0, cursor)
             .join('');
+
+        if (
+          langRef.current !== targetLang ||
+          sessionIdRef.current !== targetSessionId
+        ) {
+          clearInterval(streamTimer.current);
+          streamTimer.current = null;
+          setStreamingId(null);
+          return;
+        }
 
         setMessages(
           current =>
@@ -814,8 +825,8 @@ function ChatbotPanel({
     setInput('');
     // Top 3 is a re-entry/landing panel. Once the user starts chatting,
     // hide it so the same question is not duplicated above the live chat.
-    markTop3SeenThisSession();
-    setShowMostAskedQuestions({ en: false, hi: false });
+    markTop3SeenThisSession(lang);
+    setShowMostAskedQuestions(false);
 
     // Sending a message means the customer wants to see it (and the
     // reply that follows) right away — jump to the latest message even
@@ -823,17 +834,30 @@ function ChatbotPanel({
     // "stuck" out of view below the fold.
     setIsAtBottom(true);
 
-    setMessages(
-      current => [
-        ...current,
-        {
-          id: nextId(),
-          role: 'user',
-          text: q,
-          time: nowTime()
-        }
-      ]
-    );
+    const requestLang = lang;
+    // Resolve the originating session from the language at send time so a
+    // rapid language switch cannot send the request with the other language's
+    // session id.
+    const requestSessionId = getSessionForLang(requestLang);
+    const userMessage = {
+      id: nextId(),
+      role: 'user',
+      text: q,
+      time: nowTime()
+    };
+
+    // Persist immediately in the originating language session so a language
+    // switch cannot lose the user message before React's effect runs.
+    const storedBeforeRequest = getStoredMessages(requestSessionId);
+    saveStoredMessages(requestSessionId, [
+      ...storedBeforeRequest,
+      userMessage
+    ]);
+
+    setMessages(current => [
+      ...current,
+      userMessage
+    ]);
 
     setIsThinking(true);
 
@@ -852,9 +876,6 @@ function ChatbotPanel({
       }
     };
 
-    const requestLang = lang;
-    const requestSessionId = sessionId;
-
     try {
       const response =
         await fetch(
@@ -868,10 +889,10 @@ function ChatbotPanel({
                 'application/json'
             },
             body: JSON.stringify({
-              sessionId,
+              sessionId: requestSessionId,
               message: q,
-              language: lang,
-              responseLanguage: lang,
+              language: requestLang,
+              responseLanguage: requestLang,
               audience: 'customer'
             })
           }
@@ -887,47 +908,44 @@ function ChatbotPanel({
         );
       }
 
-      // If the user switched languages while this request was in flight,
-      // never insert the old-language answer into the new-language thread.
-      // Store it in the session that started the request so it is available
-      // when that language is selected again.
-      if (langRef.current !== requestLang) {
-        const answer = data.answer || 'No response available.';
-        const stored = getStoredMessages(requestSessionId);
-        const botId = Date.now() + Math.floor(Math.random() * 1000);
-        saveStoredMessages(requestSessionId, [
-          ...stored,
-          {
-            id: botId,
-            role: 'bot',
-            text: answer,
-            time: nowTime()
-          }
-        ]);
-        return;
-      }
-
+      // Always persist the complete response in the language/session that
+      // started the request. Never insert it into the other language thread.
       await waitForMinThinkTime();
       setIsThinking(false);
 
       const botId = nextId();
-      const answer =
-        data.answer ||
-        'No response available.';
+      const answer = data.answer || 'No response available.';
+      const botMessage = {
+        id: botId,
+        role: 'bot',
+        text: answer,
+        time: nowTime()
+      };
 
-      setMessages(
-        current => [
+      const storedAfterRequest = getStoredMessages(requestSessionId);
+      saveStoredMessages(requestSessionId, [
+        ...storedAfterRequest,
+        botMessage
+      ]);
+
+      // Only render the streaming response when the user is still viewing
+      // the originating language/session. Otherwise it remains stored and
+      // is loaded when the user switches back.
+      if (
+        langRef.current === requestLang &&
+        sessionIdRef.current === requestSessionId
+      ) {
+        setMessages(current => [
           ...current,
-          {
-            id: botId,
-            role: 'bot',
-            text: '',
-            time: nowTime()
-          }
-        ]
-      );
-
-      streamReply(botId, answer);
+          { ...botMessage, text: '' }
+        ]);
+        streamReply(
+          botId,
+          answer,
+          requestLang,
+          requestSessionId
+        );
+      }
 
       setNotice(
         data.ticketCreated || data.type === 'ticket_confirmation'
@@ -949,20 +967,34 @@ function ChatbotPanel({
       setIsThinking(false);
 
       const errorId = nextId();
+      const errorMessage = {
+        id: errorId,
+        role: 'bot',
+        text: t.connectError,
+        time: nowTime()
+      };
 
-      setMessages(
-        current => [
+      const storedAfterError = getStoredMessages(requestSessionId);
+      saveStoredMessages(requestSessionId, [
+        ...storedAfterError,
+        errorMessage
+      ]);
+
+      if (
+        langRef.current === requestLang &&
+        sessionIdRef.current === requestSessionId
+      ) {
+        setMessages(current => [
           ...current,
-          {
-            id: errorId,
-            role: 'bot',
-            text: '',
-            time: nowTime()
-          }
-        ]
-      );
-
-      streamReply(errorId, t.connectError);
+          { ...errorMessage, text: '' }
+        ]);
+        streamReply(
+          errorId,
+          t.connectError,
+          requestLang,
+          requestSessionId
+        );
+      }
     }
   };
 
@@ -1227,7 +1259,7 @@ function ChatbotPanel({
           </div>
         </div>
 
-        {showMostAskedQuestions[lang] && (
+        {showMostAskedQuestions && (
           <section className="most-asked" aria-label={t.mostAsked}>
             <div className="most-asked-head">
               <span className="most-asked-title">{t.mostAsked}</span>
