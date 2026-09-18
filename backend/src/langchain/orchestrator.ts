@@ -9,6 +9,8 @@ import { getRecentTurns, getConversationLanguage, MemoryTurn } from './memory.js
 import { getCachedAnswer } from './cache.js';
 import { isContentless, stripEmoji, normalizeDomainQuery } from './textSignal.js';
 import { SearchHit } from '../models/types.js';
+import { classifyIntent } from '../services/intent.js';
+import { env } from '../config/env.js';
 
 export type OrchestratorInput = {
   sessionId: string;
@@ -95,10 +97,10 @@ const languageStep = RunnableLambda.from(async (input: OrchestratorInput) => {
   // are only fallbacks for the (currently rare, since the frontend always
   // sends a toggle value) case where no explicit responseLanguage arrives.
   const responseLanguage =
-  inputLanguage ||
-  input.responseLanguage?.trim().toLowerCase() ||
-  storedConversationLanguage ||
-  'en';
+    input.responseLanguage?.trim().toLowerCase() ||
+    inputLanguage ||
+    storedConversationLanguage ||
+    'en';
 
   return { ...input, language: inputLanguage, responseLanguage, normalizedMessage, history };
 });
@@ -162,12 +164,69 @@ const routeStep = RunnableLambda.from(
     }
 
     if (semantic.conversationState === 'needs_clarification') {
+      const serviceOptions = semantic.entities?.service_options;
+      const unknownService = semantic.entities?.unknown_service;
+
+      if (serviceOptions) {
+        const clarificationReplies: Record<string, string> = {
+          en: `Which mechanic service would you like to book: ${serviceOptions.replaceAll(' | ', ' or ')}?`,
+          hi: `आप कौन-सी mechanic service बुक करना चाहते हैं: ${serviceOptions.replaceAll(' | ', ' या ')}?`,
+          mr: `तुम्हाला कोणती mechanic service बुक करायची आहे: ${serviceOptions.replaceAll(' | ', ' किंवा ')}?`
+        };
+
+        return {
+          language: responseLanguage,
+          normalizedMessage,
+          semantic,
+          stage: 'clarification',
+          answer: clarificationReplies[responseLanguage] ?? clarificationReplies.en
+        };
+      }
+
+      if (unknownService) {
+        const unknownServiceReplies: Record<string, string> = {
+          en: `I couldn't find "${unknownService}" as a JustTap service. Please choose a service from the available JustTap services.`,
+          hi: `मुझे JustTap में "${unknownService}" नाम की कोई सेवा नहीं मिली। कृपया उपलब्ध JustTap सेवाओं में से कोई सेवा चुनें।`,
+          mr: `JustTap मध्ये "${unknownService}" नावाची सेवा मला सापडली नाही. कृपया उपलब्ध JustTap सेवांपैकी एखादी सेवा निवडा.`
+        };
+
+        return {
+          language: responseLanguage,
+          normalizedMessage,
+          semantic,
+          stage: 'clarification',
+          answer: unknownServiceReplies[responseLanguage] ?? unknownServiceReplies.en
+        };
+      }
+
       return {
         language: responseLanguage,
         normalizedMessage,
         semantic,
         stage: 'clarification',
         answer: CLARIFICATION_REPLIES[responseLanguage] ?? CLARIFICATION_REPLIES.en
+      };
+    }
+
+    // There is no generic booking KB record. Once semantic analysis confirms
+    // that the current question names no service, answer the generic booking
+    // question directly instead of allowing RAG to select an arbitrary
+    // service-specific record such as CA.
+    if (semantic.intent === 'how_to_book' && !semantic.service) {
+      const genericBookingReplies: Record<string, string> = {
+        en: 'To book a service, open the Services section in the JustTap application, select the service you need, and follow the booking instructions shown there.\n\nLearn More',
+        hi: 'सेवा बुक करने के लिए JustTap ऐप में Services सेक्शन खोलें, अपनी आवश्यक सेवा चुनें और वहाँ दिए गए बुकिंग निर्देशों का पालन करें।\n\nLearn More',
+        mr: 'सेवा बुक करण्यासाठी JustTap application मधील Services section उघडा, तुम्हाला आवश्यक असलेली सेवा निवडा आणि तेथे दिलेल्या booking instructions चे पालन करा.\n\nLearn More'
+      };
+
+      return {
+        language: responseLanguage,
+        normalizedMessage,
+        semantic,
+        stage: 'grounded',
+        answer: genericBookingReplies[responseLanguage] ?? genericBookingReplies.en,
+        hits: [],
+        topScore: 1
       };
     }
 
@@ -206,6 +265,27 @@ const routeStep = RunnableLambda.from(
 
     const hits = await runRagChain({ query: retrievalQuery, entities: semantic.entities });
     const topScore = hits[0]?.score ?? 0;
+
+    // Hard grounding gate: do not send weak or empty retrieval results to
+    // the LLM. A low-confidence retrieval result is not evidence.
+    const minRelevanceScore = Number(env.MIN_RELEVANCE_SCORE ?? 0.52);
+    if (!hits.length || topScore < minRelevanceScore) {
+      const groundedFallbacks: Record<string, string> = {
+        hi: 'मुझे इस जानकारी का उत्तर JustTap की उपलब्ध जानकारी में नहीं मिला।\n\nLearn More',
+        mr: 'ही माहिती JustTap च्या उपलब्ध माहितीत सापडली नाही.\n\nLearn More',
+        en: 'I could not find this information in the available JustTap information.\n\nLearn More'
+      };
+
+      return {
+        language: responseLanguage,
+        normalizedMessage,
+        semantic,
+        stage: 'grounded',
+        answer: groundedFallbacks[responseLanguage] ?? groundedFallbacks.en,
+        hits,
+        topScore
+      };
+    }
 
     return { language: responseLanguage, normalizedMessage, semantic, stage: 'grounded', hits, topScore };
   }
@@ -254,8 +334,14 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   // book a plumber"). Only grounded-stage answers are ever cached (see
   // cache.ts), so this can never return a stale ticket ID or a
   // conversation-state-dependent clarification.
+  const deterministicIntent = classifyIntent(afterLanguage.normalizedMessage);
+  const isGenericBookingCandidate =
+    deterministicIntent.intent === 'how_to_book';
+
   const tCache = Date.now();
-  const cached = await getCachedAnswer(afterLanguage.normalizedMessage, afterLanguage.responseLanguage);
+  const cached = isGenericBookingCandidate
+    ? null
+    : await getCachedAnswer(afterLanguage.normalizedMessage, afterLanguage.responseLanguage);
   const cacheMs = Date.now() - tCache;
 
   if (cached) {

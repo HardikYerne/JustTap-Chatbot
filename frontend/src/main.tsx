@@ -566,7 +566,7 @@ function ChatbotPanel({
   // Top 3 is shown when the chatbot panel is opened/reopened, not while
   // the user is actively chatting. It does not alter the Top 3 data.
   const [showMostAskedQuestions, setShowMostAskedQuestions] =
-    useState(true);
+    useState<Record<Lang, boolean>>({ en: true, hi: true });
 
   const t = T[lang];
 
@@ -668,7 +668,10 @@ function ChatbotPanel({
     setStreamingId(null);
     setFeedback({});
     setMostAskedQuestions(getMostAskedDisplay(lang));
-    setShowMostAskedQuestions(false);
+    setShowMostAskedQuestions(current => ({
+      ...current,
+      [lang]: false
+    }));
   };
 
   const saveChatToFile = () => {
@@ -770,7 +773,10 @@ function ChatbotPanel({
     setInput('');
     // Top 3 is a re-entry/landing panel. Once the user starts chatting,
     // hide it so the same question is not duplicated above the live chat.
-    setShowMostAskedQuestions(false);
+    setShowMostAskedQuestions(current => ({
+      ...current,
+      [lang]: false
+    }));
 
     // Sending a message means the customer wants to see it (and the
     // reply that follows) right away — jump to the latest message even
@@ -1159,7 +1165,7 @@ function ChatbotPanel({
           </div>
         </div>
 
-        {showMostAskedQuestions && (
+        {showMostAskedQuestions[lang] && (
           <section className="most-asked" aria-label={t.mostAsked}>
             <div className="most-asked-head">
               <span className="most-asked-title">{t.mostAsked}</span>
