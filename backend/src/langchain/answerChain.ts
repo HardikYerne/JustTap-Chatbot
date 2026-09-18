@@ -13,9 +13,188 @@ export type GroundedAnswerInput = {
   minRelevanceScore: number;
 };
 
+// Predefined KB answers that need a version in every supported response
+// language, since they're returned verbatim (no generation/translation
+// step) to preserve exact structure. Add a language here whenever a new
+// predefined answer ID needs to support it.
+//
+// DRAFT TRANSLATIONS: the hi/mr text below was drafted for structure/
+// correctness of the fix, not verified by a native speaker for tone --
+// please have someone review the actual wording before this goes live.
+const predefinedAnswers: Record<string, Record<string, string>> = {
+  svc_overview_001: {
+    en: `🌟 JustTap Services Overview
+
+JustTap provides a variety of services across different categories. Here's an overview of the services we offer:
+
+- Home Services
+  1. Plumber
+  2. Electrician
+  3. Carpenter
+  4. AC Technician
+  5. Painter
+
+- Auto Services
+  1. Bike Mechanic
+  2. Car Mechanic
+  3. Car Wash
+
+- Domestic Services
+  1. Maid Service
+  2. Security Guard
+  3. Gardener
+  4. Cleaner
+
+- Technical Services
+  1. Software Developer
+  2. Web Designer
+  3. Mobile App Developer
+  4. Computer Repair Technician
+  5. Digital Marketing Expert
+
+- Education Services
+  1. Online Tutor
+  2. Spoken English Trainer
+  3. Computer Trainer
+  4. Coaching Institute
+
+- Business Services
+  1. Accountant
+  2. Tax Consultant
+  3. CA
+  4. Insurance Agent
+  5. Financial Advisor`,
+    hi: `🌟 JustTap Services Overview
+
+JustTap अलग-अलग श्रेणियों में कई सेवाएँ प्रदान करता है। यहाँ हमारी सेवाओं का अवलोकन है:
+
+- होम सर्विसेज
+  1. Plumber
+  2. Electrician
+  3. Carpenter
+  4. AC Technician
+  5. Painter
+
+- ऑटो सर्विसेज
+  1. Bike Mechanic
+  2. Car Mechanic
+  3. Car Wash
+
+- डोमेस्टिक सर्विसेज
+  1. Maid Service
+  2. Security Guard
+  3. Gardener
+  4. Cleaner
+
+- टेक्निकल सर्विसेज
+  1. Software Developer
+  2. Web Designer
+  3. Mobile App Developer
+  4. Computer Repair Technician
+  5. Digital Marketing Expert
+
+- एजुकेशन सर्विसेज
+  1. Online Tutor
+  2. Spoken English Trainer
+  3. Computer Trainer
+  4. Coaching Institute
+
+- बिजनेस सर्विसेज
+  1. Accountant
+  2. Tax Consultant
+  3. CA
+  4. Insurance Agent
+  5. Financial Advisor`,
+    mr: `🌟 JustTap Services Overview
+
+JustTap विविध श्रेणींमध्ये अनेक सेवा प्रदान करते. आम्ही देत असलेल्या सेवांचा आढावा:
+
+- होम सर्व्हिसेस
+  1. Plumber
+  2. Electrician
+  3. Carpenter
+  4. AC Technician
+  5. Painter
+
+- ऑटो सर्व्हिसेस
+  1. Bike Mechanic
+  2. Car Mechanic
+  3. Car Wash
+
+- डोमेस्टिक सर्व्हिसेस
+  1. Maid Service
+  2. Security Guard
+  3. Gardener
+  4. Cleaner
+
+- टेक्निकल सर्व्हिसेस
+  1. Software Developer
+  2. Web Designer
+  3. Mobile App Developer
+  4. Computer Repair Technician
+  5. Digital Marketing Expert
+
+- एज्युकेशन सर्व्हिसेस
+  1. Online Tutor
+  2. Spoken English Trainer
+  3. Computer Trainer
+  4. Coaching Institute
+
+- बिझनेस सर्व्हिसेस
+  1. Accountant
+  2. Tax Consultant
+  3. CA
+  4. Insurance Agent
+  5. Financial Advisor`
+  }
+};
+
+const LEARN_MORE_URL = 'https://www.justtapnow.com/about';
+
+function preserveLearnMoreLink(answer: string, hits: SearchHit[]): string {
+  // If the KB already contains a Learn More Markdown link, preserve its URL.
+  // Otherwise, convert a plain Learn More marker to the actual About link.
+  const kbText = hits.map((hit) => hit.answer ?? '').join('\n');
+  const kbUrlMatch = kbText.match(/\[Learn More(?: — JustTap)?\]\((https?:\/\/[^)]+)\)/i);
+  const url = kbUrlMatch?.[1] ?? LEARN_MORE_URL;
+
+  if (/\[Learn More(?: — JustTap)?\]\(https?:\/\/[^)]+\)/i.test(answer)) {
+    return answer;
+  }
+
+  if (/Learn More/i.test(answer)) {
+    return answer.replace(/Learn More/gi, `[Learn More](${url})`);
+  }
+
+  return answer;
+}
 
 export async function runAnswerChain(input: GroundedAnswerInput): Promise<string> {
-  const strongMatch = input.hits.length > 0 && input.topScore >= input.minRelevanceScore;
+  const strongMatch =
+    input.hits.length > 0 &&
+    input.topScore >= input.minRelevanceScore;
+
+  // Return predefined KB answers directly.
+  // This preserves their exact structure and avoids LLM paraphrasing.
+  //
+  // Picks the version matching input.language from predefinedAnswers above
+  // instead of returning input.hits[0].answer directly -- the KB record's
+  // own answer field is English-only, so returning it verbatim regardless
+  // of language meant a Hindi/Marathi conversation always got an English
+  // reply for this one answer, even though every other reply (small talk,
+  // the general LLM-generated branch below) correctly used the requested
+  // language. Falls back to English if a language isn't drafted yet, same
+  // fallback pattern safeFallbacks already uses below.
+  if (
+    strongMatch &&
+    input.hits[0]?.id &&
+    predefinedAnswers[input.hits[0].id]
+  ) {
+    const versions = predefinedAnswers[input.hits[0].id];
+    const responseLanguage = input.language.toLowerCase().split(/[-_]/)[0];
+    const answer = versions[responseLanguage] ?? versions.en;
+    return preserveLearnMoreLink(answer, input.hits);
+  }
 
   if (strongMatch) {
     const context = input.hits
@@ -57,16 +236,17 @@ Important:
 - Do not say that a service is unavailable unless the knowledge context explicitly states that it is unavailable.
 
 - Answer entirely in the requested response language.
-- For Hindi responses, write explanatory sentences in Hindi script.
-- For Marathi responses, write explanatory sentences in Marathi script.
-- For English responses, write explanatory sentences in English.
-- Keep "JustTap" unchanged.
-- Keep every service name and category name exactly as provided in the knowledge context.
-- Do not translate, transliterate, rename, shorten, merge, or otherwise modify service names or category names.
+- For Hindi responses, write the complete answer in Hindi script.
+- For Marathi responses, write the complete answer in Marathi script.
+- For English responses, write the complete answer in English.
+- Do not leave unnecessary English words inside Hindi or Marathi responses.
+- Proper nouns that have no suitable translation may remain unchanged.
+- The app name "JustTap" must remain unchanged.
 
 - Use the same structured response format for every answer.
 
-
+- Start every response with one short, relevant heading.
+- The heading must use Markdown bold syntax: **Heading**.
 - Do not use #, ##, ###, or other Markdown heading syntax.
 - After the heading, present the information point-by-point.
 - Use "-" for explanatory points or lists.
@@ -75,12 +255,10 @@ Important:
 - Do not write long blocks of text when the information can be presented as points.
 
 - For a specific service:
-
-  - Answer only the user's current request about that service.
+  - Create a short heading using the service name.
   - Provide only information relevant to that service.
   - Present the information point-by-point.
-  - Do not mention, list, recommend, or append any other service or category unless the user explicitly asks for them.
-  - Do not append the complete services overview.
+  - Do not append unrelated services or the complete services overview.
 
 - For a specific category:
   - Create a heading using the category name.
@@ -88,13 +266,18 @@ Important:
   - Present services point-by-point or as a numbered list when appropriate.
 
 - For a booking request:
-  - Create a short booking-related heading using the exact requested service name.
-  - Answer only the user's booking request for that service.
+  - Create a booking-related heading.
   - Provide only the booking information supported by the knowledge context.
   - If the knowledge context provides ordered booking steps, use a numbered list.
-  - If the user asks about a service, booking, cancellation, or price, print "Learn More" at the end of the response.
   - Do not add unsupported booking steps.
-  - Do not mention, list, recommend, or append any other service or category unless the user explicitly asks for them.
+  - Do not append unrelated services.
+
+- For a complete services overview:
+  - Use the heading:
+    **🌟 JustTap Services Overview**
+  - Provide a short introduction.
+  - Group services by their categories.
+  - Use "-" for categories.
   - Use numbered lists for services under each category.
   - Include the complete relevant list from the knowledge context.
   - Do not add booking, pricing, cancellation, or unrelated information unless explicitly requested.
@@ -102,18 +285,7 @@ Important:
 - Preserve the exact service names and category names from the knowledge context.
 - Do not invent, rename, merge, reorder, or remove services.
 - Do not use "..." when the knowledge context contains the complete list.
-- Use "-" for categories.
-- Use numbered lists for services under each category.
-- Include the complete relevant list from the knowledge context.
-- Do not add booking, pricing, cancellation, or unrelated information unless explicitly requested.
-- Analyze ONLY the customer's CURRENT question.
-- Do not inherit language, intent, category, or service from previous conversation messages unless the current question explicitly refers to them.
-- Determine the language from the current question itself.
-- A Hindi conversation does not mean the current question is Hindi.
-- If the current question is English, detected language must be English.
-- If the current question is Hindi, detected language must be Hindi.
-- If the current question is Marathi, detected language must be Marathi.
-- Determine intent from what the customer is asking in the CURRENT question.
+
 - For Hindi:
   - Write the explanatory content in Hindi.
   - Keep service names and category names exactly as provided in the knowledge context.
@@ -127,29 +299,8 @@ Important:
 
 `.trim();
 
-    const answer = await generate(prompt, input.language);
-
-    // Force "Learn More" to be a real Markdown link.
-    const learnMorePattern = /learn\s*more(?:\s*[-:])?/i;
-    const needsLearnMore =
-      /service|book|booking|cancel|cancellation|price|pricing/i.test(
-        `${input.intent} ${input.normalizedMessage}`
-      );
-
-    if (needsLearnMore) {
-      if (learnMorePattern.test(answer)) {
-        return answer.replace(
-          learnMorePattern,
-          '[Learn More](https://www.justtapnow.com/about)'
-        );
-      }
-
-      return `${answer.trim()}
-
-[Learn More](https://www.justtapnow.com/about)`;
-    }
-
-    return answer;
+    const generatedAnswer = await generate(prompt, input.language);
+    return preserveLearnMoreLink(generatedAnswer, input.hits);
   }
 
   // No sufficiently specific KB record. Use a deterministic safe response
