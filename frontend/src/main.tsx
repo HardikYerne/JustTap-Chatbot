@@ -1273,7 +1273,7 @@ function ChatbotPanel({
           <section className="most-asked" aria-label={t.mostAsked}>
             <div className="most-asked-head">
               <span className="most-asked-title">{t.mostAsked}</span>
-              <span className="most-asked-badge">TOP 3</span>
+              <span className="most-asked-badge">  Questions Most Frequently Asked by Users</span>
             </div>
 
             <div className="most-asked-list">
