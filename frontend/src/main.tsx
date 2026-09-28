@@ -97,13 +97,9 @@ const MIN_THINKING_MS = 550;
 // nothing gets mixed or translated, they're just different threads.
 function getSessionForLang(lang: string): string {
   const key = `justtap_session_${lang}`;
-  const current = localStorage.getItem(key);
-
-  if (current) return current;
-
   const next = crypto.randomUUID();
-  localStorage.setItem(key, next);
-  return next;
+localStorage.setItem(key, next);
+return next;
 }
 
 function resetSessionForLang(lang: string): string {
@@ -1273,7 +1269,7 @@ function ChatbotPanel({
           <section className="most-asked" aria-label={t.mostAsked}>
             <div className="most-asked-head">
               <span className="most-asked-title">{t.mostAsked}</span>
-              <span className="most-asked-badge">  Questions Most Frequently Asked by Users</span>
+              <span className="most-asked-badge">Most Frequently Asked Questions!</span>
             </div>
 
             <div className="most-asked-list">
