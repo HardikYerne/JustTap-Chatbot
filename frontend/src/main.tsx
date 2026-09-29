@@ -97,9 +97,23 @@ const MIN_THINKING_MS = 550;
 // nothing gets mixed or translated, they're just different threads.
 function getSessionForLang(lang: string): string {
   const key = `justtap_session_${lang}`;
+  const appSessionKey = `justtap_app_session`;
+
+  let appSession = sessionStorage.getItem(appSessionKey);
+
+  if (!appSession) {
+    appSession = crypto.randomUUID();
+    sessionStorage.setItem(appSessionKey, appSession);
+  }
+
+  const sessionKey = `${key}_${appSession}`;
+  const current = sessionStorage.getItem(sessionKey);
+
+  if (current) return current;
+
   const next = crypto.randomUUID();
-localStorage.setItem(key, next);
-return next;
+  sessionStorage.setItem(sessionKey, next);
+  return next;
 }
 
 function resetSessionForLang(lang: string): string {
@@ -522,9 +536,7 @@ function ChatbotPanel({
     useState(() => getSessionForLang(lang));
 
   const [messages, setMessages] =
-    useState<any[]>(() =>
-      getStoredMessages(sessionId)
-    );
+  useState<any[]>([]);
 
   const [input, setInput] =
     useState('');
